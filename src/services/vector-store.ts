@@ -10,7 +10,6 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import {
   PredictionServiceClient,
-  type protos,
 } from '@google-cloud/aiplatform';
 
 const PINECONE_NAMESPACE = 'ngo-chatbot-memory';
@@ -21,14 +20,23 @@ type Document = {
   content: string;
 };
 
-// Initialize Pinecone
-if (!process.env.PINECONE_API_KEY || !process.env.PINECONE_INDEX) {
+// Check for Pinecone credentials
+if (
+  !process.env.PINECONE_API_KEY ||
+  !process.env.PINECONE_INDEX ||
+  !process.env.PINECONE_HOST
+) {
   throw new Error(
-    'Pinecone API key or index name is not set in environment variables.'
+    'Pinecone API key, index name, or host is not set in environment variables.'
   );
 }
+
+// Initialize Pinecone
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-const pineconeIndex = pinecone.index(process.env.PINECONE_INDEX);
+const pineconeIndex = pinecone.index({
+  host: process.env.PINECONE_HOST,
+  name: process.env.PINECONE_INDEX,
+});
 
 // Initialize Google AI Platform client for embeddings
 const clientOptions = {
@@ -71,11 +79,17 @@ export async function upsertVectorStore(
       })
     );
 
-    await pineconeIndex.namespace(PINECONE_NAMESPACE).upsert(vectors);
+    // Filter out any vectors that failed to generate an embedding
+    const validVectors = vectors.filter(v => v.values.length > 0);
+    if (validVectors.length === 0) {
+      console.log('No valid vectors to upsert.');
+      return;
+    }
+
+    await pineconeIndex.namespace(PINECONE_NAMESPACE).upsert(validVectors);
+    console.log(`Upserted ${validVectors.length} vectors to Pinecone.`);
   } catch (error) {
     console.error('Error upserting to Pinecone:', error);
-    // Depending on the use case, you might want to re-throw the error
-    // or handle it gracefully.
   }
 }
 
@@ -93,6 +107,7 @@ export async function searchVectorStore(query: string, conversationId: string) {
       filter: {
         conversationId: { $eq: conversationId },
       },
+      includeMetadata: true,
     });
 
     return (
