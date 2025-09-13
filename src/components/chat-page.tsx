@@ -12,6 +12,16 @@ import { v4 as uuidv4 } from "uuid";
 
 const CHAT_HISTORY_KEY = "chat-history";
 
+export interface Message {
+  role: "user" | "bot";
+  content: string;
+}
+export interface Chat extends Message {
+  id: string;
+  title: string;
+  messages: Message[];
+}
+
 export default function ChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -98,7 +108,7 @@ export default function ChatPage() {
   return (
     <SidebarProvider>
       <div className="flex h-screen bg-zinc-900">
-        <Sidebar collapsible="offcanvas" className="w-80 border-r border-zinc-800 bg-zinc-900">
+        <Sidebar className="w-80 border-r border-zinc-800 bg-zinc-900">
           <ChatHistory
             chats={chats}
             activeChatId={activeChatId}

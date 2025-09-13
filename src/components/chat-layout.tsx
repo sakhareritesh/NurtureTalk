@@ -10,7 +10,7 @@ import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
 import { useSidebar } from "./ui/sidebar";
 
-export interface Chat extends Message {
+export interface Chat {
   id: string;
   title: string;
   messages: Message[];
