@@ -1,18 +1,17 @@
 'use server';
 
 /**
- * @fileOverview A service for interacting with an AstraDB vector store.
+ * @fileOverview A service for interacting with a Pinecone vector store.
  *
- * - upsertVectorStore - Upserts documents into the AstraDB collection.
- * - searchVectorStore - Searches the AstraDB collection for relevant documents.
+ * - upsertVectorStore - Upserts documents into the Pinecone index.
+ * - searchVectorStore - Searches the Pinecone index for relevant documents.
  */
 
-import { DataAPIClient, VectorDoc } from '@datastax/astra-db-ts';
+import { Pinecone } from '@pinecone-database/pinecone';
 import {
   PredictionServiceClient,
 } from '@google-cloud/aiplatform';
 
-const ASTRA_DB_COLLECTION = 'ngo_chatbot_memory';
 const TOP_K = 5; // Number of results to fetch
 
 type Document = {
@@ -23,19 +22,24 @@ type Document = {
 // Function to check if credentials are set
 function areCredentialsSet() {
   return (
-    process.env.ASTRA_DB_API_ENDPOINT &&
-    process.env.ASTRA_DB_APPLICATION_TOKEN
+    process.env.PINECONE_API_KEY &&
+    process.env.PINECONE_INDEX &&
+    process.env.PINECONE_HOST
   );
 }
 
-// Initialize AstraDB client
-const client = areCredentialsSet()
-  ? new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN!)
+// Initialize Pinecone client
+const pc = areCredentialsSet()
+  ? new Pinecone({ apiKey: process.env.PINECONE_API_KEY! })
   : null;
 
-const db = client ? client.db(process.env.ASTRA_DB_API_ENDPOINT!) : null;
-const astraCollection = db ? db.collection(ASTRA_DB_COLLECTION) : null;
-
+const pineconeIndex =
+  pc && process.env.PINECONE_INDEX && process.env.PINECONE_HOST
+    ? pc.index({
+        host: process.env.PINECONE_HOST,
+        name: process.env.PINECONE_INDEX,
+      })
+    : null;
 
 // Initialize Google AI Platform client for embeddings
 const clientOptions = {
@@ -60,42 +64,43 @@ export async function upsertVectorStore(
   docs: Document[],
   conversationId: string
 ) {
-  if (!astraCollection) {
-    console.warn('AstraDB connection not available. Skipping upsert.');
+  if (!pineconeIndex) {
+    console.warn('Pinecone connection not available. Skipping upsert.');
     return;
   }
 
   try {
-    const documentsToUpsert: VectorDoc[] = await Promise.all(
+    const vectors = await Promise.all(
       docs.map(async (doc, index) => {
         const embedding = await getEmbedding(`${doc.role}: ${doc.content}`);
         return {
-          _id: `${conversationId}-${Date.now()}-${index}`,
-          $vector: embedding || [],
-          text: doc.content,
-          role: doc.role,
-          conversationId,
+          id: `${conversationId}-${Date.now()}-${index}`,
+          values: embedding || [],
+          metadata: {
+            text: doc.content,
+            role: doc.role,
+            conversationId,
+          },
         };
       })
     );
-    
-    // Filter out any documents that failed to generate an embedding
-    const validDocs = documentsToUpsert.filter(d => d.$vector && d.$vector.length > 0);
-    if (validDocs.length === 0) {
+
+    const validVectors = vectors.filter(v => v.values && v.values.length > 0);
+    if (validVectors.length === 0) {
       console.log('No valid documents to upsert.');
       return;
     }
 
-    await astraCollection.insertMany(validDocs);
-    console.log(`Upserted ${validDocs.length} documents to AstraDB.`);
+    await pineconeIndex.upsert(validVectors);
+    console.log(`Upserted ${validVectors.length} documents to Pinecone.`);
   } catch (error) {
-    console.error('Error upserting to AstraDB:', error);
+    console.error('Error upserting to Pinecone:', error);
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  if (!astraCollection) {
-    console.warn('AstraDB connection not available. Returning no results.');
+  if (!pineconeIndex) {
+    console.warn('Pinecone connection not available. Returning no results.');
     return [];
   }
 
@@ -105,26 +110,24 @@ export async function searchVectorStore(query: string, conversationId: string) {
     if (!queryEmbedding) {
       return [];
     }
-    
-    const results = await astraCollection.find(
-      {
+
+    const results = await pineconeIndex.query({
+      vector: queryEmbedding,
+      topK: TOP_K,
+      filter: {
         conversationId: { $eq: conversationId },
       },
-      {
-        sort: { $vector: queryEmbedding },
-        limit: TOP_K,
-        includeSimilarity: true,
-      }
-    );
+      includeMetadata: true,
+    });
 
     return (
-      results.data?.map(doc => ({
-        pageContent: doc.text as string,
-        score: doc.$similarity,
+      results.matches?.map(match => ({
+        pageContent: (match.metadata?.text as string) || '',
+        score: match.score,
       })) || []
     );
   } catch (error) {
-    console.error('Error searching AstraDB:', error);
+    console.error('Error searching Pinecone:', error);
     return [];
   }
 }
