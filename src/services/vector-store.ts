@@ -19,10 +19,8 @@ type Document = {
   content: string;
 };
 
+// Singleton instance of Pinecone
 let pc: Pinecone | null = null;
-if (process.env.PINECONE_API_KEY) {
-  pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-}
 
 // Initialize Google AI Platform client for embeddings
 const clientOptions = {
@@ -44,10 +42,24 @@ async function getEmbedding(
 }
 
 function getPineconeIndex() {
-  if (!pc || !process.env.PINECONE_INDEX || !process.env.PINECONE_HOST) {
-    console.warn("Pinecone credentials are not fully set. The vector store will not be available.");
+  if (!process.env.PINECONE_API_KEY) {
+    console.error("PINECONE_API_KEY is not set in environment variables.");
     return null;
   }
+  if (!process.env.PINECONE_INDEX) {
+    console.error("PINECONE_INDEX is not set in environment variables.");
+    return null;
+  }
+  if (!process.env.PINECONE_HOST) {
+    console.error("PINECONE_HOST is not set in environment variables. Please find it in your Pinecone dashboard.");
+    return null;
+  }
+  
+  if (!pc) {
+    console.log('Initializing Pinecone client for the first time.');
+    pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+  }
+
   return pc.index({
       host: process.env.PINECONE_HOST,
       name: process.env.PINECONE_INDEX,
@@ -58,51 +70,67 @@ export async function upsertVectorStore(
   docs: Document[],
   conversationId: string
 ) {
+  console.log('--- Starting upsertVectorStore process ---');
   const pineconeIndex = getPineconeIndex();
   if (!pineconeIndex) {
-    console.log('Skipping upsert because Pinecone is not configured.');
+    console.error('Failed to get Pinecone index. Aborting upsert.');
     return;
   }
 
   try {
-    console.log('Starting upsert process for', docs.length, 'documents.');
-    const vectors = await Promise.all(
-      docs.map(async (doc, index) => {
-        const embedding = await getEmbedding(`${doc.role}: ${doc.content}`);
-        if (!embedding || embedding.length === 0) {
-          console.warn(`Could not generate embedding for doc: ${doc.content}`);
-          return null;
-        }
-        return {
-          id: `${conversationId}-${Date.now()}-${index}`,
-          values: embedding,
-          metadata: {
-            text: doc.content,
-            role: doc.role,
-            conversationId,
-          },
-        };
-      })
-    );
+    console.log(`Processing ${docs.length} documents for conversation ID: ${conversationId}`);
+    
+    const vectors = [];
+    for (let i = 0; i < docs.length; i++) {
+      const doc = docs[i];
+      const docText = `${doc.role}: ${doc.content}`;
+      console.log(`[${i + 1}/${docs.length}] Generating embedding for: "${doc.content.substring(0, 50)}..."`);
+      
+      let embedding;
+      try {
+        embedding = await getEmbedding(docText);
+      } catch (embeddingError) {
+        console.error(`ERROR: Failed to generate embedding for document ${i + 1}.`, embeddingError);
+        continue; // Skip this document and move to the next
+      }
 
-    const validVectors = vectors.filter(v => v !== null);
-    if (validVectors.length === 0) {
-      console.log('No valid vectors to upsert.');
+      if (!embedding || embedding.length === 0) {
+        console.warn(`WARNING: Could not generate a valid embedding for doc: "${doc.content.substring(0, 50)}...". Skipping.`);
+        continue;
+      }
+
+      vectors.push({
+        id: `${conversationId}-${Date.now()}-${i}`,
+        values: embedding,
+        metadata: {
+          text: doc.content,
+          role: doc.role,
+          conversationId,
+        },
+      });
+      console.log(`[${i + 1}/${docs.length}] Successfully created vector.`);
+    }
+
+    if (vectors.length === 0) {
+      console.warn('WARNING: No valid vectors were created. Nothing to upsert.');
+      console.log('--- Finished upsertVectorStore process (with no data to save) ---');
       return;
     }
 
-    console.log('Upserting', validVectors.length, 'vectors to Pinecone.');
-    await pineconeIndex.upsert(validVectors as any);
-    console.log(`Successfully upserted ${validVectors.length} documents to Pinecone.`);
+    console.log(`Attempting to upsert ${vectors.length} vectors to Pinecone index '${process.env.PINECONE_INDEX}'.`);
+    await pineconeIndex.upsert(vectors as any);
+    console.log(`✅ SUCCESS: Successfully upserted ${vectors.length} documents to Pinecone.`);
+
   } catch (error) {
-    console.error('Error upserting to Pinecone:', error);
+    console.error('❌ CRITICAL: An error occurred during the Pinecone upsert process.', error);
   }
+  console.log('--- Finished upsertVectorStore process ---');
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
   const pineconeIndex = getPineconeIndex();
   if (!pineconeIndex) {
-    console.log('Skipping search because Pinecone is not configured.');
+    console.error('Skipping search because Pinecone is not configured.');
     return [];
   }
 
