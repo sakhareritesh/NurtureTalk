@@ -26,15 +26,16 @@ export default function ChatLayout() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!inputValue.trim() || !conversationId) return;
+    if (!inputValue.trim()) return;
 
     const userMessage: Message = { role: 'user', content: inputValue };
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInputValue('');
     setIsMessageLoading(true);
 
     try {
-      const response = await getChatbotResponse(inputValue, conversationId);
+      const response = await getChatbotResponse(inputValue, newMessages);
       const botMessage: Message = { role: 'bot', content: response };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {

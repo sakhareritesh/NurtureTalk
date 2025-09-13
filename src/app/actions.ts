@@ -1,16 +1,20 @@
 'use server';
 
 import { generatePdfReport } from '@/ai/flows/generate-pdf-reports';
-import { maintainConversationContext } from '@/ai/flows/maintain-conversation-context';
+import { chatbotAnswersNGOQueries } from '@/ai/flows/chatbot-answers-ngo-queries';
 
 type Message = {
   role: 'user' | 'bot';
   content: string;
 };
 
-export async function getChatbotResponse(query: string, conversationId: string) {
+export async function getChatbotResponse(query: string, messages: Message[]) {
   try {
-    const response = await maintainConversationContext({ query, conversationId });
+    const conversationHistory = messages.map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+    const response = await chatbotAnswersNGOQueries({ query, conversationHistory });
     return response.response;
   } catch (error) {
     console.error('Error getting chatbot response:', error);
