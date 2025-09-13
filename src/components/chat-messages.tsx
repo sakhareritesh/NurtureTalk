@@ -1,6 +1,6 @@
 'use client';
 
-import { HandHeart, LoaderCircle, User, Clock, Flame, Star } from 'lucide-react';
+import { HandHeart, LoaderCircle, User, Briefcase, DollarSign, Lightbulb } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef } from 'react';
@@ -13,20 +13,20 @@ export type Message = {
 };
 
 const promptSuggestions = {
-  "Recent": [
-    { icon: HandHeart, title: "Speak Any Language:", description: "Translate phrases instantly." },
-    { icon: HandHeart, title: "Explore Philosophy:", description: "Discuss profound questions." },
-    { icon: HandHeart, title: "Code Problem Solver:", description: "" }
+  "Getting Started": [
+    { icon: Lightbulb, title: "Explain the role of NGOs", description: "in community development." },
+    { icon: Lightbulb, title: "How do I start an NGO?", description: "List the key steps." },
+    { icon: Lightbulb, title: "What is a theory of change?", description: "and why is it important?" }
   ],
-  "Frequent": [
-    { icon: Flame, title: "Imagination Unleashed:", description: "Create a unique story from any idea." },
-    { icon: Flame, title: "Learn Something New:", description: "Explain complex topics in simple terms." },
-    { icon: Flame, title: "Cooking Made Easy:", description: "Get recipe ideas." }
+  "Fundraising & Grants": [
+    { icon: DollarSign, title: "Suggest fundraising ideas", description: "for a small environmental NGO." },
+    { icon: DollarSign, title: "How to write a grant proposal?", description: "Provide a template." },
+    { icon: DollarSign, title: "What is impact investing?", description: "Explain the pros and cons." }
   ],
-  "Recommended": [
-    { icon: Star, title: "Virtual Travel Buddy:", description: "Tour the world virtually." },
-    { icon: Star, title: "Healthy Living Tips:", description: "Receive fitness and wellness advice." },
-    { icon: Star, title: "Art & Music Picks:", description: "Discover art and music" }
+  "Operations & Management": [
+    { icon: Briefcase, title: "How to recruit and manage volunteers?", description: "Share best practices." },
+    { icon: Briefcase, title: "What are the principles of good NGO governance?", description: "" },
+    { icon: Briefcase, title: "How to measure and report social impact?", description: "" }
   ]
 };
 
@@ -49,7 +49,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
 
   return (
     <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
-      <div className="space-y-6">
+      <div className="mx-auto max-w-3xl space-y-6">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center pt-8 text-center animate-in fade-in duration-500">
              <h1 className="text-4xl font-bold text-white mb-8">NurtureTalk</h1>
@@ -57,9 +57,9 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
               {Object.entries(promptSuggestions).map(([category, prompts]) => (
                 <div key={category}>
                   <h2 className="text-lg font-semibold text-white mb-4 flex items-center justify-center">
-                    {category === 'Recent' && <Clock className="h-5 w-5 mr-2" />}
-                    {category === 'Frequent' && <Flame className="h-5 w-5 mr-2" />}
-                    {category === 'Recommended' && <Star className="h-5 w-5 mr-2" />}
+                    {category === 'Getting Started' && <Lightbulb className="h-5 w-5 mr-2" />}
+                    {category === 'Fundraising & Grants' && <DollarSign className="h-5 w-5 mr-2" />}
+                    {category === 'Operations & Management' && <Briefcase className="h-5 w-5 mr-2" />}
                     {category}
                   </h2>
                   <div className="space-y-4">
