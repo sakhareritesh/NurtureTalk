@@ -12,14 +12,8 @@ export async function getChatbotResponse(
   conversationId: string,
   messages: Message[]
 ) {
-  if (!process.env.PINECONE_API_KEY) {
-    return 'The `PINECONE_API_KEY` environment variable is not set. Please add it to your .env file.';
-  }
-  if (!process.env.PINECONE_INDEX) {
-    return 'The `PINECONE_INDEX` environment variable is not set. Please add it to your .env file.';
-  }
-  if (!process.env.PINECONE_HOST) {
-    return 'The `PINECONE_HOST` environment variable is not set. Please find it in your Pinecone dashboard and add it to your .env file.';
+  if (!process.env.CHROMA_DB_URL) {
+    return 'The `CHROMA_DB_URL` environment variable is not set. Please add it to your .env file.';
   }
 
   try {

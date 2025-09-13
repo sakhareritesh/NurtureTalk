@@ -1,13 +1,15 @@
 'use server';
 
 /**
- * @fileOverview A service for interacting with a Pinecone serverless vector store.
+ * @fileOverview A service for interacting with a ChromaDB vector store.
  *
- * - upsertVectorStore - Upserts documents into the Pinecone index.
- * - searchVectorStore - Searches the Pinecone index for relevant documents.
+ * - upsertVectorStore - Upserts documents into a ChromaDB collection.
+ * - searchVectorStore - Searches a ChromaDB collection for relevant documents.
  */
 
-import { Pinecone } from '@pinecone-database/pinecone';
+import { ChromaClient, CohereEmbeddingFunction } from 'chromadb';
+import { embed } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const TOP_K = 5; // Number of results to fetch
 
@@ -16,110 +18,121 @@ type Document = {
   content: string;
 };
 
-// Singleton instance of Pinecone
-let pc: Pinecone | null = null;
+// Singleton instance of ChromaClient
+let client: ChromaClient | null = null;
 
-function getPineconeClient(): Pinecone | null {
-  if (!process.env.PINECONE_API_KEY) {
-    console.error('PINECONE_API_KEY is not set in environment variables.');
+function getChromaClient(): ChromaClient | null {
+  if (!process.env.CHROMA_DB_URL) {
+    console.error('CHROMA_DB_URL is not set in environment variables.');
     return null;
   }
 
-  if (!pc) {
-    pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+  if (!client) {
+    client = new ChromaClient({ path: process.env.CHROMA_DB_URL });
   }
-  return pc;
+  return client;
 }
 
-function getPineconeIndex() {
-  const pineconeClient = getPineconeClient();
-  if (!pineconeClient) return null;
+// Genkit/Google AI-based embedding function for ChromaDB
+const embeddingFunction = {
+  async generate(texts: string[]): Promise<number[][]> {
+    const embeddings = await embed({
+      embedder: googleAI.embedder('text-embedding-004'),
+      content: texts,
+    });
+    return embeddings;
+  },
+};
 
-  if (!process.env.PINECONE_INDEX) {
-    console.error('PINECONE_INDEX is not set in environment variables.');
-    return null;
-  }
-  
-  // The host is required for serverless indexes
-  if (!process.env.PINECONE_HOST) {
-    console.error('PINECONE_HOST is not set in environment variables.');
-    return null;
+async function getOrCreateCollection(conversationId: string) {
+  const chromaClient = getChromaClient();
+  if (!chromaClient) {
+    throw new Error('ChromaDB client not initialized.');
   }
 
-  return pineconeClient.index({
-    host: process.env.PINECONE_HOST,
-    name: process.env.PINECONE_INDEX,
-  });
+  try {
+    const collection = await chromaClient.getCollection({
+      name: conversationId,
+      embeddingFunction: embeddingFunction as any, // Cast because chromadb types might not be perfectly aligned
+    });
+    return collection;
+  } catch (error) {
+    // Assuming error means not found, create it
+    console.log(`Collection "${conversationId}" not found, creating it.`);
+    const collection = await chromaClient.createCollection({
+      name: conversationId,
+      embeddingFunction: embeddingFunction as any,
+    });
+    return collection;
+  }
 }
 
 export async function upsertVectorStore(
   docs: Document[],
   conversationId: string
 ) {
-  console.log(`--- Starting upsertVectorStore process for Pinecone namespace: ${conversationId} ---`);
-  const pineconeIndex = getPineconeIndex();
-  if (!pineconeIndex) {
-    console.error('Failed to get Pinecone index. Aborting upsert.');
+  console.log(`--- Starting upsertVectorStore process for ChromaDB collection: ${conversationId} ---`);
+  if (!getChromaClient()) {
+    console.error('Failed to get ChromaDB client. Aborting upsert.');
     return;
   }
 
   try {
-    const namespace = pineconeIndex.namespace(conversationId);
+    const collection = await getOrCreateCollection(conversationId);
     console.log(`Processing ${docs.length} documents for upsert.`);
 
-    const records = docs.map((doc, i) => ({
-      id: `${conversationId}-${Date.now()}-${i}`,
-      values: [], // Values are ignored, but the field is expected. Pinecone generates the vector from metadata.
-      metadata: {
-        // The text to be embedded should be in a field that matches the index's configuration.
-        // We assume the field is named 'text' for this serverless setup.
-        text: `${doc.role}: ${doc.content}`,
-        role: doc.role,
-      },
-    }));
-
-    if (records.length > 0) {
-      await namespace.upsert(records);
-      console.log(`✅ SUCCESS: Successfully upserted ${records.length} documents to Pinecone namespace '${conversationId}'.`);
-    } else {
-      console.log('No records were generated, nothing to upsert.');
+    if (docs.length === 0) {
+      console.log('No documents to upsert.');
+      return;
     }
+
+    const ids = docs.map((_, i) => `${conversationId}-${Date.now()}-${i}`);
+    const metadatas = docs.map(doc => ({ role: doc.role }));
+    const documents = docs.map(doc => `${doc.role}: ${doc.content}`);
+
+    await collection.add({
+      ids,
+      metadatas,
+      documents,
+    });
+
+    console.log(`✅ SUCCESS: Successfully upserted ${docs.length} documents to ChromaDB collection '${conversationId}'.`);
   } catch (error) {
-    console.error('❌ CRITICAL: An error occurred during the Pinecone upsert process.', error);
+    console.error('❌ CRITICAL: An error occurred during the ChromaDB upsert process.', error);
   }
   console.log('--- Finished upsertVectorStore process ---');
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  console.log(`--- Starting searchVectorStore process for Pinecone namespace: ${conversationId} ---`);
-  const pineconeIndex = getPineconeIndex();
-  if (!pineconeIndex) {
-    console.error('Skipping search because Pinecone is not configured.');
+  console.log(`--- Starting searchVectorStore process for ChromaDB collection: ${conversationId} ---`);
+  if (!getChromaClient()) {
+    console.error('Skipping search because ChromaDB is not configured.');
     return [];
   }
 
   try {
-    const namespace = pineconeIndex.namespace(conversationId);
+    const collection = await getOrCreateCollection(conversationId);
 
-    // With a serverless index that has an integrated embedding model,
-    // we query by text instead of by vector.
-    const results = await namespace.query({
-      query, // The raw query text
-      topK: TOP_K,
-      includeMetadata: true,
+    const results = await collection.query({
+      nResults: TOP_K,
+      queryTexts: [query],
     });
 
-    console.log(`✅ SUCCESS: Found ${results.matches?.length || 0} results in namespace '${conversationId}'.`);
+    console.log(`✅ SUCCESS: Found ${results.documents[0].length || 0} results in collection '${conversationId}'.`);
 
-    return (
-      results.matches?.map(match => ({
-        // The original text is expected to be in the 'text' field of the metadata
-        pageContent: (match.metadata?.text as string) || '',
-        score: match.score,
-      })) || []
-    );
+    if (!results.documents || results.documents.length === 0) {
+      return [];
+    }
+
+    // Combine documents and distances (scores)
+    const searchResults = results.documents[0].map((doc, index) => ({
+      pageContent: doc ?? '',
+      score: results.distances?.[0]?.[index] ?? 0,
+    }));
+
+    return searchResults;
   } catch (error) {
-    console.error('❌ CRITICAL: Error searching Pinecone:', error);
+    console.error('❌ CRITICAL: Error searching ChromaDB:', error);
     return [];
   }
 }
