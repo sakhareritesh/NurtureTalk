@@ -147,7 +147,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         isLoading={isMessageLoading}
         onPromptSelect={handlePromptSelect}
       />
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="w-full">
         <ChatInput
           value={inputValue}
           onChange={handleInputChange}
