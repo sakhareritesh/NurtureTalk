@@ -19,14 +19,14 @@ export async function getChatbotResponse(query: string, conversationId: string) 
   }
 }
 
-export async function generateReport(messages: Message[]) {
+export async function generateReport(messages: Message[], conversationId: string) {
   const conversationHistory = messages
     .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
     .join('\n\n');
     
   try {
-    const response = await generatePdfReport({ conversationHistory });
-    return response.pdfBase64;
+    const response = await generatePdfReport({ conversationHistory, conversationId });
+    return response.filePath;
   } catch (error) {
     console.error('Error generating PDF report:', error);
     throw new Error('Failed to generate PDF report.');

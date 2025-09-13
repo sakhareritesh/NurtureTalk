@@ -62,16 +62,10 @@ export default function ChatLayout() {
 
     setIsReportLoading(true);
     try {
-      const pdfBase64 = await generateReport(messages);
-      const link = document.createElement('a');
-      link.href = pdfBase64;
-      link.download = `NurtureTalk-Report-${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const filePath = await generateReport(messages, conversationId);
       toast({
         title: 'Success',
-        description: 'Your PDF report has been downloaded.',
+        description: `Your PDF report has been saved to the server at: ${filePath}`,
       });
     } catch (error) {
       toast({

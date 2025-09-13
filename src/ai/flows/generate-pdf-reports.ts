@@ -12,21 +12,22 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {jsPDF} from 'jspdf';
+import fs from 'fs';
+import path from 'path';
 
 const GeneratePdfReportInputSchema = z.object({
   conversationHistory: z
     .string()
     .describe('The complete history of the conversation to be summarized.'),
+  conversationId: z.string().describe('A unique identifier for the conversation.'),
 });
 
 export type GeneratePdfReportInput = z.infer<typeof GeneratePdfReportInputSchema>;
 
 const GeneratePdfReportOutputSchema = z.object({
-  pdfBase64: z
+  filePath: z
     .string()
-    .describe(
-      'The generated PDF report as a base64 encoded string (data URI that must include a MIME type and use Base64 encoding. Expected format: \'data:<mimetype>;base64,<encoded_data>\').'  
-    ),
+    .describe('The path where the generated PDF report is saved.'),
 });
 
 export type GeneratePdfReportOutput = z.infer<typeof GeneratePdfReportOutputSchema>;
@@ -47,6 +48,8 @@ const summarizeConversationTool = ai.defineTool({
 }, async (input) => {
   const {text} = await ai.generate({
     prompt: `Summarize the following conversation, extracting the key points and relevant details:\n\n{{conversationHistory}}`,
+    // @ts-ignore
+    input: { conversationHistory: input.conversationHistory }
   });
   return text;
 });
@@ -58,13 +61,27 @@ const generatePdfReportFlow = ai.defineFlow(
     outputSchema: GeneratePdfReportOutputSchema,
   },
   async input => {
-    const summary = await summarizeConversationTool(input);
+    const summary = await summarizeConversationTool({ conversationHistory: input.conversationHistory });
 
-    // Generate PDF from the summary
     const pdf = new jsPDF();
-    pdf.text(summary, 10, 10);
-    const pdfBase64 = pdf.output('datauristring');
+    
+    // Split text into lines that fit the page width
+    const textLines = pdf.splitTextToSize(summary, 180);
+    pdf.text(textLines, 10, 10);
 
-    return {pdfBase64};
+    // Create pdfs directory if it doesn't exist
+    const pdfsDir = path.join(process.cwd(), 'pdfs');
+    if (!fs.existsSync(pdfsDir)) {
+      fs.mkdirSync(pdfsDir);
+    }
+
+    // Save the PDF to the /pdfs directory
+    const fileName = `NurtureTalk-Report-${input.conversationId}-${Date.now()}.pdf`;
+    const filePath = path.join(pdfsDir, fileName);
+    
+    const pdfOutput = pdf.output('arraybuffer');
+    fs.writeFileSync(filePath, Buffer.from(pdfOutput));
+    
+    return {filePath};
   }
 );
