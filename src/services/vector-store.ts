@@ -1,57 +1,21 @@
 'use server';
 
-/**
- * @fileOverview A service for interacting with an Astra DB vector store.
- *
- * - upsertVectorStore - Upserts documents into an Astra DB collection.
- * - searchVectorStore - Searches an Astra DB collection for relevant documents.
- */
-
-import { DataAPIClient, Db } from '@datastax/astra-db-ts';
+import { DataAPIClient } from '@datastax/astra-db-ts';
 import { embed } from '@genkit-ai/ai';
 
-const TOP_K = 5; // Number of results to fetch
-const COLLECTION_NAME = 'nurturetalk_collection';
+const ASTRA_DB_ENDPOINT = process.env.ASTRA_DB_ENDPOINT || '';
+const ASTRA_DB_APPLICATION_TOKEN =
+  process.env.ASTRA_DB_APPLICATION_TOKEN || '';
+const COLLECTION_NAME = 'nurture_talk_collection';
 
-type Document = {
-  role: 'user' | 'bot';
-  content: string;
-};
-
-// Singleton instance of Astra DB
-let db: Db | null = null;
-
-function getAstraDb(): Db {
-  if (db) {
-    return db;
-  }
-
-  const endpoint = process.env.ASTRA_DB_ENDPOINT;
-  const token = process.env.ASTRA_DB_APPLICATION_TOKEN;
-
-  if (!endpoint || !token) {
-    throw new Error(
-      'Astra DB credentials are not set in environment variables. Please set ASTRA_DB_ENDPOINT and ASTRA_DB_APPLICATION_TOKEN.'
-    );
-  }
-
-  console.log('Attempting to connect to AstraDB...');
-  const client = new DataAPIClient(token);
-  db = client.db(endpoint);
-
-  // Optional: Add a connection log to verify
-  (async () => {
-    try {
-      await db!.listCollections();
-      console.log('✅ SUCCESS: Successfully connected to AstraDB.');
-    } catch (e) {
-      console.error("❌ CRITICAL: Failed to connect to AstraDB on initialization.", e);
-    }
-  })();
-
-
-  return db;
+if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) {
+  console.warn(
+    'ASTRA_DB_ENDPOINT or ASTRA_DB_APPLICATION_TOKEN is not set. Vector store functionality will be disabled.'
+  );
 }
+
+const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN);
+const db = client.db(ASTRA_DB_ENDPOINT);
 
 async function getEmbedding(text: string) {
   const embedding = await embed({
@@ -61,71 +25,69 @@ async function getEmbedding(text: string) {
   return embedding;
 }
 
-async function getOrCreateCollection() {
-  const db = getAstraDb();
+const getCollection = async () => {
   try {
-    const collections = await db.collections();
-    const collectionExists = collections.some(
-      (c) => c.collectionName === COLLECTION_NAME
-    );
-
-    if (collectionExists) {
+    const collections = await db.listCollections();
+    const collectionExists = collections.some(c => c.name === COLLECTION_NAME);
+    if (!collectionExists) {
+      console.log(`Creating collection ${COLLECTION_NAME}...`);
+      return await db.createCollection(COLLECTION_NAME, {
+        vector: {
+          dimension: 768,
+          metric: 'cosine',
+        },
+      });
+    } else {
       return db.collection(COLLECTION_NAME);
     }
   } catch (error) {
-    // If list collections fails, it might be an older version of AstraDB, proceed to create
-    console.warn("Could not list collections, proceeding to create. This may not be an error.", error);
+    console.error('CRITICAL: Failed to get or create collection in Astra DB.', error);
+    throw new Error('Failed to connect to the vector database.');
   }
+};
 
 
-  console.log(`Collection '${COLLECTION_NAME}' not found or couldn't be verified. Creating new collection...`);
-  return db.createCollection(COLLECTION_NAME, {
-    vector: { dimension: 768, metric: 'cosine' },
-  });
-}
+type Message = {
+  role: 'user' | 'bot';
+  content: string;
+};
 
 export async function upsertVectorStore(
-  docs: Document[],
+  messages: Message[],
   conversationId: string
 ) {
-  console.log(`--- Starting upsertVectorStore for conversation: ${conversationId} ---`);
-  try {
-    const collection = await getOrCreateCollection();
+  console.log(`Attempting to upsert ${messages.length} messages for conversationId: ${conversationId}`);
+  if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) return;
 
-    console.log(`Processing ${docs.length} documents for upsert.`);
-    if (docs.length === 0) {
-      console.log('No documents to upsert.');
-      return;
+  try {
+    const collection = await getCollection();
+    const documentsToUpsert = [];
+
+    for (const message of messages) {
+      const embedding = await getEmbedding(message.content);
+      documentsToUpsert.push({
+        _id: `${conversationId}-${Date.now()}-${Math.random()}`,
+        text: message.content,
+        conversationId: conversationId,
+        role: message.role,
+        $vector: embedding,
+      });
     }
 
-    const documentsToInsert = await Promise.all(
-      docs.map(async (doc, index) => {
-        const vector = await getEmbedding(`${doc.role}: ${doc.content}`);
-        const docToInsert = {
-          _id: `${conversationId}-${Date.now()}-${index}`,
-          $vector: vector,
-          text: doc.content,
-          role: doc.role,
-          conversationId: conversationId,
-        };
-        console.log("Preparing to insert:", JSON.stringify(docToInsert, null, 2));
-        return docToInsert;
-      })
-    );
-
-    await collection.insertMany(documentsToInsert);
-    console.log(`✅ SUCCESS: Successfully upserted ${documentsToInsert.length} documents to Astra DB.`);
+    console.log(`Prepared ${documentsToUpsert.length} documents for upsert.`);
+    const result = await collection.insertMany(documentsToUpsert);
+    console.log('✅ SUCCESS: Upsert to Astra DB completed.', result);
   } catch (error) {
-    console.error('❌ CRITICAL: An error occurred during the Astra DB upsert process.', error);
-    // Re-throw the error so the caller knows something went wrong.
-    throw error;
+    console.error('❌ CRITICAL: Failed to upsert data to Astra DB.', error);
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  console.log(`--- Starting searchVectorStore for conversation: ${conversationId} ---`);
+  console.log(`Searching vector store for query in conversationId: ${conversationId}`);
+  if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) return [];
+
   try {
-    const collection = await getOrCreateCollection();
+    const collection = await getCollection();
     const queryVector = await getEmbedding(query);
 
     const cursor = await collection.find(
@@ -134,21 +96,24 @@ export async function searchVectorStore(query: string, conversationId: string) {
       },
       {
         sort: { $vector: queryVector },
-        limit: TOP_K,
+        limit: 5,
         includeSimilarity: true,
       }
     );
-
-    const results = await cursor.toArray();
     
-    console.log(`✅ SUCCESS: Found ${results.length} relevant documents in conversation '${conversationId}'.`);
+    const results = await cursor.toArray();
 
-    return results.map((result) => ({
-      pageContent: result.text as string ?? '',
-      score: result.$similarity ?? 0,
+    console.log(`Found ${results.length} relevant documents in Astra DB.`);
+    return results.map(doc => ({
+      pageContent: doc.text,
+      metadata: {
+        conversationId: doc.conversationId,
+        role: doc.role,
+        similarity: doc.$similarity,
+      },
     }));
   } catch (error) {
-    console.error('❌ CRITICAL: Error searching Astra DB:', error);
+    console.error('❌ CRITICAL: Failed to search data in Astra DB.', error);
     return [];
   }
 }
