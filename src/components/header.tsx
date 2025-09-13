@@ -1,6 +1,6 @@
 'use client';
 
-import { HandHeart, LoaderCircle, FileDown } from 'lucide-react';
+import { HandHeart, LoaderCircle, FileDown, PanelLeft } from 'lucide-react';
 import { Button } from './ui/button';
 
 type HeaderProps = {
@@ -8,12 +8,16 @@ type HeaderProps = {
   isGeneratingReport: boolean;
   isMessageLoading: boolean;
   hasMessages: boolean;
+  onToggleSidebar: () => void;
 };
 
-export function Header({ onGenerateReport, isGeneratingReport, isMessageLoading, hasMessages }: HeaderProps) {
+export function Header({ onGenerateReport, isGeneratingReport, isMessageLoading, hasMessages, onToggleSidebar }: HeaderProps) {
   return (
     <header className="flex items-center justify-between border-b bg-card px-4 py-3 sm:px-6 z-10 shadow-sm">
       <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={onToggleSidebar}>
+          <PanelLeft className="h-5 w-5" />
+        </Button>
         <HandHeart className="h-8 w-8 text-primary" />
         <h1 className="text-xl font-semibold tracking-tight font-headline text-foreground">NurtureTalk</h1>
       </div>

@@ -1,26 +1,32 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Header } from './header';
-import { ChatInput } from './chat-input';
-import { ChatMessages, type Message } from './chat-messages';
-import { getChatbotResponse } from '@/app/actions';
-import { useToast } from '@/hooks/use-toast';
-import { jsPDF } from 'jspdf';
-import { v4 as uuidv4 } from 'uuid';
+import { useState, useEffect, useCallback } from "react";
+import { Header } from "./header";
+import { ChatInput } from "./chat-input";
+import { ChatMessages, type Message } from "./chat-messages";
+import { getChatbotResponse } from "@/app/actions";
+import { useToast } from "@/hooks/use-toast";
+import { jsPDF } from "jspdf";
+import { v4 as uuidv4 } from "uuid";
+import { useSidebar } from "./ui/sidebar";
 
-export default function ChatLayout() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
+export interface Chat extends Message {
+  id: string;
+  title: string;
+  messages: Message[];
+}
+
+type ChatLayoutProps = {
+  activeChat: Chat | null;
+  onMessagesChange: (chatId: string, messages: Message[]) => void;
+};
+
+export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutProps) {
+  const [inputValue, setInputValue] = useState("");
   const [isMessageLoading, setIsMessageLoading] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
-  const [conversationId, setConversationId] = useState('');
   const { toast } = useToast();
-
-  useEffect(() => {
-    // Generate a unique ID for the conversation on client-side mount.
-    setConversationId(uuidv4());
-  }, []);
+  const { toggleSidebar } = useSidebar();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
@@ -28,31 +34,31 @@ export default function ChatLayout() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!inputValue.trim() || !conversationId) return;
+    if (!inputValue.trim() || !activeChat) return;
 
-    const userMessage: Message = { role: 'user', content: inputValue };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInputValue('');
+    const userMessage: Message = { role: "user", content: inputValue };
+    const newMessages = [...activeChat.messages, userMessage];
+    onMessagesChange(activeChat.id, newMessages);
+    setInputValue("");
     setIsMessageLoading(true);
 
     try {
       const response = await getChatbotResponse(
         inputValue,
-        conversationId,
+        activeChat.id,
         newMessages
       );
-      const botMessage: Message = { role: 'bot', content: response };
-      setMessages(prev => [...prev, botMessage]);
+      const botMessage: Message = { role: "bot", content: response };
+      onMessagesChange(activeChat.id, [...newMessages, botMessage]);
     } catch (error) {
       toast({
-        title: 'Error',
+        title: "Error",
         description:
-          'Failed to get a response from the chatbot. Please check your credentials.',
-        variant: 'destructive',
+          "Failed to get a response from the chatbot. Please check your credentials.",
+        variant: "destructive",
       });
       // Revert optimistic UI update on error
-      setMessages(prev => prev.slice(0, -1));
+      onMessagesChange(activeChat.id, newMessages);
       setInputValue(userMessage.content);
     } finally {
       setIsMessageLoading(false);
@@ -60,10 +66,10 @@ export default function ChatLayout() {
   };
 
   const handleGenerateReport = async () => {
-    if (messages.length === 0) {
+    if (!activeChat || activeChat.messages.length === 0) {
       toast({
-        title: 'Cannot generate report',
-        description: 'There are no messages in the conversation yet.',
+        title: "Cannot generate report",
+        description: "There are no messages in the conversation yet.",
       });
       return;
     }
@@ -71,7 +77,7 @@ export default function ChatLayout() {
     setIsReportLoading(true);
     try {
       const pdf = new jsPDF();
-      const conversationText = messages
+      const conversationText = activeChat.messages
         .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
         .join('\n\n');
 
@@ -82,7 +88,6 @@ export default function ChatLayout() {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const margin = 15;
       const usableWidth = pageWidth - margin * 2;
-      const usableHeight = pageHeight - margin * 2;
       let y = margin;
 
       pdf.setFont('helvetica', 'bold');
@@ -93,7 +98,7 @@ export default function ChatLayout() {
       const textLines = pdf.splitTextToSize(conversationText, usableWidth);
 
       for (const line of textLines) {
-        if (y + 10 > usableHeight) {
+        if (y + 10 > pageHeight - margin) {
           pdf.addPage();
           y = margin;
           pdf.setFont('helvetica', 'bold');
@@ -104,20 +109,21 @@ export default function ChatLayout() {
         pdf.text(line, margin, y);
         y += 7;
       }
-
-      pdf.save(`NurtureTalk-Report-${conversationId}.pdf`);
+      
+      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
 
       toast({
-        title: 'Success',
-        description: 'Your PDF report is downloading.',
+        title: "Success",
+        description: "Your PDF report is downloading.",
         duration: 3000,
       });
+
     } catch (error) {
-      console.error('Error generating PDF report:', error);
+      console.error("Error generating PDF report:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to generate the PDF report.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to generate the PDF report.",
+        variant: "destructive",
       });
     } finally {
       setIsReportLoading(false);
@@ -125,19 +131,20 @@ export default function ChatLayout() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <Header
+    <div className="flex h-full flex-col bg-background relative">
+       <Header
         onGenerateReport={handleGenerateReport}
         isGeneratingReport={isReportLoading}
         isMessageLoading={isMessageLoading}
-        hasMessages={messages.length > 0}
+        hasMessages={!!activeChat && activeChat.messages.length > 0}
+        onToggleSidebar={toggleSidebar}
       />
-      <ChatMessages messages={messages} isLoading={isMessageLoading} />
+      <ChatMessages messages={activeChat?.messages ?? []} isLoading={isMessageLoading} />
       <ChatInput
         value={inputValue}
         onChange={handleInputChange}
         onSubmit={handleSubmit}
-        isLoading={isMessageLoading}
+        isLoading={isMessageLoading || !activeChat}
       />
     </div>
   );

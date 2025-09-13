@@ -1,9 +1,9 @@
-import ChatLayout from "@/components/chat-layout";
+import ChatPage from "@/components/chat-page";
 
 export default function Home() {
   return (
     <main className="flex h-[100dvh] flex-col">
-      <ChatLayout />
+      <ChatPage />
     </main>
   );
 }
