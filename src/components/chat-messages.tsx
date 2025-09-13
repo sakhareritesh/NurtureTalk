@@ -5,7 +5,6 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
 
 export type Message = {
   role: 'user' | 'bot';
@@ -26,7 +25,7 @@ const promptSuggestions = {
   "Operations & Management": [
     { icon: Briefcase, title: "How to recruit and manage volunteers?", description: "Share best practices." },
     { icon: Briefcase, title: "What are the principles of good NGO governance?", description: "" },
-    { icon: Briefcase, title: "How to measure and report social impact?", description: "" }
+    { icon: Briefcase, title: "How to measure or report social impact?", description: "" }
   ]
 };
 
@@ -67,7 +66,10 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
                     <Button 
                       key={index} 
                       variant="outline" 
-                      className="w-full h-auto min-h-[7rem] text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white"
+                      className={cn("w-full h-auto text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white", {
+                        "min-h-[7rem]": category === "Operations & Management" || category === "Fundraising & Grants",
+                        "min-h-[5rem]": category === "Getting Started"
+                      })}
                       onClick={() => onPromptSelect(`${prompt.title} ${prompt.description}`)}
                     >
                       <div>
