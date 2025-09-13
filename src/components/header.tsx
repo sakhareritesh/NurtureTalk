@@ -19,7 +19,7 @@ export function Header({ onGenerateReport, isGeneratingReport, isMessageLoading,
           <PanelLeft className="h-5 w-5" />
         </Button>
         <HandHeart className="h-8 w-8 text-primary" />
-        <h1 className="text-xl font-semibold tracking-tight font-headline text-foreground">NurtureTalk</h1>
+        <h1 className="text-xl font-semibold tracking-tight font-headline text-foreground">Ask Us Anything</h1>
       </div>
       <Button
         onClick={onGenerateReport}

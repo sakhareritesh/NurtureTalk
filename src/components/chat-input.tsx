@@ -46,7 +46,7 @@ export function ChatInput({ value, onChange, onSubmit, isLoading }: ChatInputPro
           value={value}
           onChange={onChange}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about NGO activities..."
+          placeholder="Ask me anything..."
           className="max-h-36 min-h-12 w-full resize-none rounded-2xl border-input bg-background pr-14 text-base"
           rows={1}
           disabled={isLoading}

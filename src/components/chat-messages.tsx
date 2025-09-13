@@ -30,9 +30,9 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center pt-16 text-center text-muted-foreground animate-in fade-in duration-500">
              <HandHeart className="mb-4 h-16 w-16 text-primary/50" />
-            <h2 className="text-2xl font-semibold font-headline text-foreground">Welcome to NurtureTalk</h2>
+            <h2 className="text-2xl font-semibold font-headline text-foreground">Ask Us Anything</h2>
             <p className="mt-2">Your AI assistant for all things NGO-related.</p>
-            <p>Ask me about funding, operations, or impact assessment to get started.</p>
+            <p>You can ask about funding, operations, or impact assessment to get started.</p>
           </div>
         )}
         {messages.map((message, index) => (
