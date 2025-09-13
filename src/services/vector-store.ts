@@ -1,21 +1,31 @@
 'use server';
 
-import { DataAPIClient } from '@datastax/astra-db-ts';
+/**
+ * @fileOverview A service for interacting with Pinecone for vector storage and retrieval.
+ *
+ * - upsertVectorStore - Upserts chat messages into a Pinecone index.
+ * - searchVectorStore - Searches for relevant documents in a Pinecone index based on a query.
+ */
+
 import { embed } from '@genkit-ai/ai';
+import { Pinecone } from '@pinecone-database/pinecone';
 
-const ASTRA_DB_ENDPOINT = process.env.ASTRA_DB_ENDPOINT || '';
-const ASTRA_DB_APPLICATION_TOKEN =
-  process.env.ASTRA_DB_APPLICATION_TOKEN || '';
-const COLLECTION_NAME = 'nurture_talk_collection';
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY || '';
+const PINECONE_HOST = process.env.PINECONE_HOST || '';
 
-if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) {
+if (!PINECONE_API_KEY || !PINECONE_HOST) {
   console.warn(
-    'ASTRA_DB_ENDPOINT or ASTRA_DB_APPLICATION_TOKEN is not set. Vector store functionality will be disabled.'
+    'PINECONE_API_KEY or PINECONE_HOST is not set. Vector store functionality will be disabled.'
   );
 }
 
-const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN);
-const db = client.db(ASTRA_DB_ENDPOINT);
+const pc = new Pinecone({
+  apiKey: PINECONE_API_KEY,
+});
+
+// The host parameter is the URL of the index, e.g. "https://<index_name>-<project_id>.svc.<environment>.pinecone.io"
+// It is required for serverless indexes.
+const pineconeIndex = pc.index(PINECONE_HOST);
 
 async function getEmbedding(text: string) {
   const embedding = await embed({
@@ -24,28 +34,6 @@ async function getEmbedding(text: string) {
   });
   return embedding;
 }
-
-const getCollection = async () => {
-  try {
-    const collections = await db.listCollections();
-    const collectionExists = collections.some(c => c.name === COLLECTION_NAME);
-    if (!collectionExists) {
-      console.log(`Creating collection ${COLLECTION_NAME}...`);
-      return await db.createCollection(COLLECTION_NAME, {
-        vector: {
-          dimension: 768,
-          metric: 'cosine',
-        },
-      });
-    } else {
-      return db.collection(COLLECTION_NAME);
-    }
-  } catch (error) {
-    console.error('CRITICAL: Failed to get or create collection in Astra DB.', error);
-    throw new Error('Failed to connect to the vector database.');
-  }
-};
-
 
 type Message = {
   role: 'user' | 'bot';
@@ -57,63 +45,56 @@ export async function upsertVectorStore(
   conversationId: string
 ) {
   console.log(`Attempting to upsert ${messages.length} messages for conversationId: ${conversationId}`);
-  if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) return;
+  if (!PINECONE_API_KEY || !PINECONE_HOST) return;
 
   try {
-    const collection = await getCollection();
-    const documentsToUpsert = [];
+    const vectorsToUpsert = [];
 
     for (const message of messages) {
       const embedding = await getEmbedding(message.content);
-      documentsToUpsert.push({
-        _id: `${conversationId}-${Date.now()}-${Math.random()}`,
-        text: message.content,
-        conversationId: conversationId,
-        role: message.role,
-        $vector: embedding,
+      vectorsToUpsert.push({
+        id: `${conversationId}-${Date.now()}-${Math.random()}`,
+        values: embedding,
+        metadata: {
+          text: message.content,
+          role: message.role,
+        },
       });
     }
 
-    console.log(`Prepared ${documentsToUpsert.length} documents for upsert.`);
-    const result = await collection.insertMany(documentsToUpsert);
-    console.log('✅ SUCCESS: Upsert to Astra DB completed.', result);
+    console.log(`Prepared ${vectorsToUpsert.length} documents for upsert to Pinecone.`);
+    const result = await pineconeIndex.namespace(conversationId).upsert(vectorsToUpsert);
+    console.log('✅ SUCCESS: Upsert to Pinecone completed.', result);
   } catch (error) {
-    console.error('❌ CRITICAL: Failed to upsert data to Astra DB.', error);
+    console.error('❌ CRITICAL: Failed to upsert data to Pinecone.', error);
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  console.log(`Searching vector store for query in conversationId: ${conversationId}`);
-  if (!ASTRA_DB_ENDPOINT || !ASTRA_DB_APPLICATION_TOKEN) return [];
+  console.log(`Searching Pinecone for query in conversationId: ${conversationId}`);
+  if (!PINECONE_API_KEY || !PINECONE_HOST) return [];
 
   try {
-    const collection = await getCollection();
     const queryVector = await getEmbedding(query);
 
-    const cursor = await collection.find(
-      {
-        conversationId: conversationId,
-      },
-      {
-        sort: { $vector: queryVector },
-        limit: 5,
-        includeSimilarity: true,
-      }
-    );
+    const queryResponse = await pineconeIndex.namespace(conversationId).query({
+      topK: 5,
+      vector: queryVector,
+      includeMetadata: true,
+    });
     
-    const results = await cursor.toArray();
+    const results = queryResponse.matches || [];
 
-    console.log(`Found ${results.length} relevant documents in Astra DB.`);
-    return results.map(doc => ({
-      pageContent: doc.text,
+    console.log(`Found ${results.length} relevant documents in Pinecone.`);
+    return results.map(match => ({
+      pageContent: match.metadata?.text as string,
       metadata: {
-        conversationId: doc.conversationId,
-        role: doc.role,
-        similarity: doc.$similarity,
+        role: match.metadata?.role as string,
+        similarity: match.score,
       },
     }));
   } catch (error) {
-    console.error('❌ CRITICAL: Failed to search data in Astra DB.', error);
+    console.error('❌ CRITICAL: Failed to search data in Pinecone.', error);
     return [];
   }
 }
