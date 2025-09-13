@@ -18,14 +18,14 @@ const promptSuggestions = {
     { icon: Lightbulb, title: "What is a theory of change?", description: "and why is it important?" }
   ],
   "Fundraising & Grants": [
-    { icon: DollarSign, title: "Suggest fundraising ideas", description: "for a small environmental NGO." },
+    { icon: DollarSign, title: "Suggest fundraising ideas", description: "for a small NGO." },
     { icon: DollarSign, title: "How to write a grant proposal?", description: "Provide a template." },
-    { icon: DollarSign, title: "What is impact investing?", description: "Explain the pros and cons." }
+    { icon: DollarSign, title: "What is impact investing?", description: "Explain the pros & cons." }
   ],
   "Operations & Management": [
     { icon: Briefcase, title: "How to recruit and manage volunteers?", description: "Share best practices." },
-    { icon: Briefcase, title: "What are the principles of good NGO governance?", description: "" },
-    { icon: Briefcase, title: "How to measure or report social impact?", description: "" }
+    { icon: Briefcase, title: "Principles of good NGO governance?", description: "" },
+    { icon: Briefcase, title: "How to measure social impact?", description: "" }
   ]
 };
 
