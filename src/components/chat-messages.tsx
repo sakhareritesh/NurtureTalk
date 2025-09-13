@@ -52,7 +52,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
       <div className="mx-auto max-w-3xl space-y-6">
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center pt-8 text-center animate-in fade-in duration-500">
-             <h1 className="text-4xl font-bold text-white mb-8">Ai Chat</h1>
+             <h1 className="text-4xl font-bold text-white mb-8">NurtureTalk</h1>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
               {Object.entries(promptSuggestions).map(([category, prompts]) => (
                 <div key={category}>

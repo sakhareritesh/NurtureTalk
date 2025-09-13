@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
-import { Plus, MessageSquare, Trash2, User, Zap } from "lucide-react";
+import { Plus, MessageSquare, Trash2, User } from "lucide-react";
 import type { Chat } from "./chat-layout";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 
@@ -94,11 +94,6 @@ export function ChatHistory({
         </div>
       </div>
       <div className="mt-auto p-2 space-y-2 border-t border-zinc-800">
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-300 hover:bg-zinc-800">
-              <Zap className="h-4 w-4" />
-              Upgrade
-              <span className="ml-auto text-xs bg-yellow-400 text-black px-1.5 py-0.5 rounded">NEW</span>
-          </Button>
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-300 hover:bg-zinc-800">
               <Avatar className="h-6 w-6">
                 <AvatarFallback className="bg-zinc-700 text-zinc-300 text-xs">

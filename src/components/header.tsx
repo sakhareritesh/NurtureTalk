@@ -1,7 +1,8 @@
 'use client';
 
-import { Home, Folder, Download } from 'lucide-react';
+import { Menu, Folder, Download } from 'lucide-react';
 import { Button } from './ui/button';
+import { SidebarTrigger } from './ui/sidebar';
 
 type HeaderProps = {
   onGenerateReport: () => void;
@@ -13,12 +14,12 @@ type HeaderProps = {
 
 export function Header({ onGenerateReport, isGeneratingReport, isMessageLoading, hasMessages, onToggleSidebar }: HeaderProps) {
   return (
-    <header className="flex items-center justify-center border-b border-zinc-800 bg-background px-4 py-3 sm:px-6 z-10">
+    <header className="flex items-center justify-between border-b border-zinc-800 bg-background px-4 py-3 sm:px-6 z-10">
+      <SidebarTrigger>
+        <Menu className="h-5 w-5 text-zinc-300" />
+      </SidebarTrigger>
+      
       <div className="flex items-center gap-2">
-        <Button variant="ghost" className="text-zinc-300 hover:bg-zinc-800 hover:text-white">
-          <Home className="mr-2 h-4 w-4" />
-          Home
-        </Button>
         <Button variant="secondary" className="bg-zinc-800 text-white hover:bg-zinc-700">
           <Folder className="mr-2 h-4 w-4" />
           Documentation

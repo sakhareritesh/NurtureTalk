@@ -81,7 +81,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
     try {
       const pdf = new jsPDF();
       const conversationText = activeChat.messages
-        .map(msg => `${msg.role === 'bot' ? 'Ai Chat' : 'You'}: ${msg.content}`)
+        .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
         .join('\n\n');
 
       pdf.setFont('helvetica');
@@ -94,7 +94,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
       let y = margin;
 
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Ai Chat Conversation Report', pageWidth / 2, y, { align: 'center' });
+      pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
       y += 10;
       pdf.setFont('helvetica', 'normal');
 
@@ -105,7 +105,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
           pdf.addPage();
           y = margin;
           pdf.setFont('helvetica', 'bold');
-          pdf.text('Ai Chat Conversation Report', pageWidth / 2, y, { align: 'center' });
+          pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
           y += 10;
           pdf.setFont('helvetica', 'normal');
         }
@@ -113,7 +113,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         y += 7;
       }
       
-      pdf.save(`AiChat-Report-${activeChat.id}.pdf`);
+      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
 
       toast({
         title: "Success",
