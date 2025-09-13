@@ -37,6 +37,6 @@ export async function getChatbotResponse(
   } catch (error) {
     console.error('Error getting chatbot response:', error);
     // This provides a user-friendly error message while logging the actual error server-side.
-    return 'I seem to be having trouble connecting to Pinecone. Please make sure your credentials in the .env file are correct and try again.';
+    return 'I seem to be having trouble connecting to the database. Please make sure your credentials in the .env file are correct and try again.';
   }
 }
