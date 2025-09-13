@@ -122,9 +122,9 @@ export async function searchVectorStore(query: string, conversationId: string) {
     const cursor = await collection.find(
       {
         conversationId: conversationId,
+        $vector: { $near: queryVector },
       },
       {
-        sort: { $vector: queryVector },
         limit: TOP_K,
         includeSimilarity: true,
       }
