@@ -2,7 +2,6 @@
 
 import { Menu, Folder, Download } from 'lucide-react';
 import { Button } from './ui/button';
-import { SidebarTrigger } from './ui/sidebar';
 
 type HeaderProps = {
   onGenerateReport: () => void;
@@ -15,9 +14,9 @@ type HeaderProps = {
 export function Header({ onGenerateReport, isGeneratingReport, isMessageLoading, hasMessages, onToggleSidebar }: HeaderProps) {
   return (
     <header className="flex items-center justify-between border-b border-zinc-800 bg-background px-4 py-3 sm:px-6 z-10">
-      <SidebarTrigger>
-        <Menu className="h-5 w-5 text-zinc-300" />
-      </SidebarTrigger>
+      <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="h-7 w-7 text-zinc-300">
+        <Menu className="h-5 w-5" />
+      </Button>
       
       <div className="flex items-center gap-2">
         <Button variant="secondary" className="bg-zinc-800 text-white hover:bg-zinc-700">

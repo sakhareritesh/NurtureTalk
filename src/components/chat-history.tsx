@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Plus, MessageSquare, Trash2, User } from "lucide-react";
-import type { Chat } from "./chat-page";
+import type { Chat } from "./chat-layout";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 
 type ChatHistoryProps = {

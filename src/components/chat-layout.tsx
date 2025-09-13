@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Header } from "./header";
 import { ChatInput } from "./chat-input";
 import { ChatMessages, type Message } from "./chat-messages";
 import { getChatbotResponse } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
-import { v4 as uuidv4 } from "uuid";
-import { useSidebar } from "./ui/sidebar";
 
 export interface Chat {
   id: string;
@@ -19,14 +17,14 @@ export interface Chat {
 type ChatLayoutProps = {
   activeChat: Chat | null;
   onMessagesChange: (chatId: string, messages: Message[]) => void;
+  onToggleSidebar: () => void;
 };
 
-export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutProps) {
+export default function ChatLayout({ activeChat, onMessagesChange, onToggleSidebar }: ChatLayoutProps) {
   const [inputValue, setInputValue] = useState("");
   const [isMessageLoading, setIsMessageLoading] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const { toast } = useToast();
-  const { toggleSidebar } = useSidebar();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
@@ -140,7 +138,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         isGeneratingReport={isReportLoading}
         isMessageLoading={isMessageLoading}
         hasMessages={!!activeChat && activeChat.messages.length > 0}
-        onToggleSidebar={toggleSidebar}
+        onToggleSidebar={onToggleSidebar}
       />
       <ChatMessages 
         messages={activeChat?.messages ?? []} 
