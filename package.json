@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@datastax/astra-db-ts": "^1.5.0",
+    "@genkit-ai/ai": "^1.14.1",
     "@genkit-ai/googleai": "^1.14.1",
     "@genkit-ai/next": "^1.14.1",
     "@google-cloud/aiplatform": "^3.4.0",

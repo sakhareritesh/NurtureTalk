@@ -8,7 +8,7 @@
  */
 
 import { DataAPIClient, Db } from '@datastax/astra-db-ts';
-import { embed } from 'genkit';
+import { embed } from '@genkit-ai/ai';
 import { googleAI } from '@genkit-ai/googleai';
 
 const TOP_K = 5; // Number of results to fetch
