@@ -12,6 +12,13 @@ export async function getChatbotResponse(
   conversationId: string,
   messages: Message[]
 ) {
+  if (
+    !process.env.ASTRA_DB_API_ENDPOINT ||
+    !process.env.ASTRA_DB_APPLICATION_TOKEN
+  ) {
+    return 'I seem to be having trouble connecting. Please make sure your AstraDB credentials in the .env file are correct and try again.';
+  }
+
   try {
     const conversationHistory = messages.map(m => ({
       role: m.role,
@@ -27,6 +34,6 @@ export async function getChatbotResponse(
   } catch (error) {
     console.error('Error getting chatbot response:', error);
     // This provides a user-friendly error message while logging the actual error server-side.
-    return 'I seem to be having trouble connecting. Please make sure your Pinecone credentials in the .env file are correct and try again.';
+    return 'I seem to be having trouble connecting. Please make sure your AstraDB credentials in the .env file are correct and try again.';
   }
 }
