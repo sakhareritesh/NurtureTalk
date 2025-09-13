@@ -66,10 +66,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
                     <Button 
                       key={index} 
                       variant="outline" 
-                      className={cn("w-full h-auto text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white", {
-                        "min-h-[7rem]": category === "Operations & Management" || category === "Fundraising & Grants",
-                        "min-h-[5rem]": category === "Getting Started"
-                      })}
+                      className="w-full h-auto text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white min-h-[5rem]"
                       onClick={() => onPromptSelect(`${prompt.title} ${prompt.description}`)}
                     >
                       <div>
