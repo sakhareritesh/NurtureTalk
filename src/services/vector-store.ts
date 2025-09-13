@@ -9,7 +9,6 @@
 
 import { DataAPIClient, Db } from '@datastax/astra-db-ts';
 import { embed } from '@genkit-ai/ai';
-import { googleAI } from '@genkit-ai/googleai';
 
 const TOP_K = 5; // Number of results to fetch
 const COLLECTION_NAME = 'nurturetalk_collection';
@@ -56,7 +55,7 @@ function getAstraDb(): Db {
 
 async function getEmbedding(text: string) {
   const embedding = await embed({
-    embedder: googleAI('text-embedding-004'),
+    embedder: 'text-embedding-004',
     content: text,
   });
   return embedding;
