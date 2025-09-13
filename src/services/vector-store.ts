@@ -56,7 +56,7 @@ function getAstraDb(): Db {
 
 async function getEmbedding(text: string) {
   const embedding = await embed({
-    embedder: googleAI.embedder('text-embedding-004'),
+    embedder: googleAI('text-embedding-004'),
     content: text,
   });
   return embedding;
@@ -122,9 +122,9 @@ export async function searchVectorStore(query: string, conversationId: string) {
     const cursor = await collection.find(
       {
         conversationId: conversationId,
-        $vector: { $near: queryVector },
       },
       {
+        sort: { $vector: queryVector },
         limit: TOP_K,
         includeSimilarity: true,
       }
