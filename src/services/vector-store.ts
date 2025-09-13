@@ -1,55 +1,48 @@
 'use server';
 
 /**
- * @fileOverview A service for interacting with a Pinecone vector store.
+ * @fileOverview A service for interacting with an Astra DB vector store.
  *
- * - upsertVectorStore - Upserts documents into a Pinecone index.
- * - searchVectorStore - Searches a Pinecone index for relevant documents.
+ * - upsertVectorStore - Upserts documents into an Astra DB collection.
+ * - searchVectorStore - Searches an Astra DB collection for relevant documents.
  */
 
-import { Pinecone } from '@pinecone-database/pinecone';
-import { googleAI } from '@genkit-ai/googleai';
+import { DataAPIClient } from '@datastax/astra-db-ts';
 import { embed } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
 
 const TOP_K = 5; // Number of results to fetch
+const COLLECTION_NAME = 'nurturetalk_collection';
 
 type Document = {
   role: 'user' | 'bot';
   content: string;
 };
 
-// Singleton instance of Pinecone
-let pinecone: Pinecone | null = null;
+// Singleton instance of Astra DB Client
+let client: DataAPIClient | null = null;
 
-function getPineconeClient(): Pinecone | null {
-  if (!process.env.PINECONE_API_KEY) {
-    console.error('PINECONE_API_KEY is not set in environment variables.');
-    return null;
+function getAstraDbClient(): DataAPIClient {
+  if (client) {
+    return client;
   }
-
-  if (!pinecone) {
-    pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+  if (
+    !process.env.ASTRA_DB_ENDPOINT ||
+    !process.env.ASTRA_DB_APPLICATION_TOKEN
+  ) {
+    throw new Error(
+      'Astra DB credentials are not set in environment variables.'
+    );
   }
-  return pinecone;
-}
-
-function getPineconeIndex() {
-  const client = getPineconeClient();
-  if (!client) {
-    throw new Error('Pinecone client not initialized.');
-  }
-
-  if (!process.env.PINECONE_INDEX) {
-    throw new Error('PINECONE_INDEX is not set in environment variables.');
-  }
-  if (!process.env.PINECONE_HOST) {
-    throw new Error('PINECONE_HOST is not set in environment variables.');
-  }
-
-  return client.index({
-    host: process.env.PINECONE_HOST,
-    name: process.env.PINECONE_INDEX,
+  client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN, {
+    httpOptions: {
+      fetch,
+    },
+    dbOptions: {
+      endpoint: process.env.ASTRA_DB_ENDPOINT,
+    },
   });
+  return client;
 }
 
 async function getEmbedding(text: string) {
@@ -60,14 +53,27 @@ async function getEmbedding(text: string) {
   return embedding;
 }
 
+async function getOrCreateCollection(db: ReturnType<typeof getAstraDbClient>) {
+  const collections = await db.collections();
+  const collectionExists = collections.some(
+    (c) => c.collectionName === COLLECTION_NAME
+  );
+  if (collectionExists) {
+    return db.collection(COLLECTION_NAME);
+  }
+  return db.createCollection(COLLECTION_NAME, {
+    vector: { dimension: 768, metric: 'cosine' },
+  });
+}
+
 export async function upsertVectorStore(
   docs: Document[],
   conversationId: string
 ) {
-  console.log(`--- Starting upsertVectorStore for Pinecone namespace: ${conversationId} ---`);
+  console.log(`--- Starting upsertVectorStore for conversation: ${conversationId} ---`);
   try {
-    const index = getPineconeIndex();
-    const namespace = index.namespace(conversationId);
+    const dbClient = getAstraDbClient();
+    const collection = await getOrCreateCollection(dbClient);
 
     console.log(`Processing ${docs.length} documents for upsert.`);
     if (docs.length === 0) {
@@ -75,51 +81,55 @@ export async function upsertVectorStore(
       return;
     }
 
-    const vectors = await Promise.all(
-      docs.map(async (doc) => {
-        const id = `${conversationId}-${Date.now()}-${Math.random()}`;
-        const values = await getEmbedding(`${doc.role}: ${doc.content}`);
-        const metadata = {
-          role: doc.role,
+    const documentsToInsert = await Promise.all(
+      docs.map(async (doc, index) => {
+        const vector = await getEmbedding(`${doc.role}: ${doc.content}`);
+        return {
+          _id: `${conversationId}-${Date.now()}-${index}`,
+          $vector: vector,
           text: doc.content,
+          role: doc.role,
+          conversationId: conversationId,
         };
-        return { id, values, metadata };
       })
     );
 
-    await namespace.upsert(vectors);
-    console.log(`✅ SUCCESS: Successfully upserted ${vectors.length} documents to Pinecone namespace '${conversationId}'.`);
+    await collection.insertMany(documentsToInsert);
+    console.log(`✅ SUCCESS: Successfully upserted ${documentsToInsert.length} documents to Astra DB.`);
   } catch (error) {
-    console.error('❌ CRITICAL: An error occurred during the Pinecone upsert process.', error);
+    console.error('❌ CRITICAL: An error occurred during the Astra DB upsert process.', error);
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  console.log(`--- Starting searchVectorStore for Pinecone namespace: ${conversationId} ---`);
+  console.log(`--- Starting searchVectorStore for conversation: ${conversationId} ---`);
   try {
-    const index = getPineconeIndex();
-    const namespace = index.namespace(conversationId);
+    const dbClient = getAstraDbClient();
+    const collection = await getOrCreateCollection(dbClient);
 
     const queryVector = await getEmbedding(query);
 
-    const results = await namespace.query({
-      topK: TOP_K,
-      vector: queryVector,
-      includeMetadata: true,
-    });
+    const cursor = await collection.find(
+      {
+        conversationId: conversationId,
+      },
+      {
+        sort: { $vector: queryVector },
+        limit: TOP_K,
+        includeSimilarity: true,
+      }
+    );
+
+    const results = await cursor.toArray();
     
-    console.log(`✅ SUCCESS: Found ${results.matches?.length || 0} results in namespace '${conversationId}'.`);
+    console.log(`✅ SUCCESS: Found ${results.length} results in conversation '${conversationId}'.`);
 
-    if (!results.matches) {
-      return [];
-    }
-
-    return results.matches.map((match) => ({
-      pageContent: match.metadata?.text as string ?? '',
-      score: match.score ?? 0,
+    return results.map((result) => ({
+      pageContent: result.text as string ?? '',
+      score: result.$similarity ?? 0,
     }));
   } catch (error) {
-    console.error('❌ CRITICAL: Error searching Pinecone:', error);
+    console.error('❌ CRITICAL: Error searching Astra DB:', error);
     return [];
   }
 }

@@ -13,11 +13,10 @@ export async function getChatbotResponse(
   messages: Message[]
 ) {
   if (
-    !process.env.PINECONE_API_KEY ||
-    !process.env.PINECONE_HOST ||
-    !process.env.PINECONE_INDEX
+    !process.env.ASTRA_DB_ENDPOINT ||
+    !process.env.ASTRA_DB_APPLICATION_TOKEN
   ) {
-    return 'The Pinecone credentials are not set in the `.env` file. Please add `PINECONE_API_KEY`, `PINECONE_HOST`, and `PINECONE_INDEX`.';
+    return 'The Astra DB credentials are not set in the `.env` file. Please add `ASTRA_DB_ENDPOINT` and `ASTRA_DB_APPLICATION_TOKEN`.';
   }
 
   try {
