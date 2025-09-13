@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { HandHeart, LoaderCircle, User, Briefcase, DollarSign, Lightbulb } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -67,7 +67,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
                     <Button 
                       key={index} 
                       variant="outline" 
-                      className="w-full h-auto min-h-[5rem] text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white"
+                      className="w-full h-auto min-h-[6rem] text-left justify-start p-4 bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-white"
                       onClick={() => onPromptSelect(`${prompt.title} ${prompt.description}`)}
                     >
                       <div>
