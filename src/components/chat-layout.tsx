@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { Header } from './header';
 import { ChatInput } from './chat-input';
 import { ChatMessages, type Message } from './chat-messages';
-import { getChatbotResponse, generateReport } from '@/app/actions';
+import { getChatbotResponse } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
+import { jsPDF } from 'jspdf';
 
 export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -63,12 +64,49 @@ export default function ChatLayout() {
 
     setIsReportLoading(true);
     try {
-      const filePath = await generateReport(messages, conversationId);
+      const pdf = new jsPDF();
+      const conversationText = messages
+        .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
+        .join('\n\n');
+
+      pdf.setFont('helvetica');
+      pdf.setFontSize(12);
+
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 15;
+      const usableWidth = pageWidth - margin * 2;
+      const usableHeight = pageHeight - margin * 2;
+      let y = margin;
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+      pdf.setFont('helvetica', 'normal');
+
+      const textLines = pdf.splitTextToSize(conversationText, usableWidth);
+
+      for (const line of textLines) {
+        if (y + 10 > usableHeight) {
+          pdf.addPage();
+          y = margin;
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
+          y += 10;
+          pdf.setFont('helvetica', 'normal');
+        }
+        pdf.text(line, margin, y);
+        y += 7;
+      }
+      
+      pdf.save(`NurtureTalk-Report-${conversationId}.pdf`);
+
       toast({
         title: 'Success',
-        description: `Your PDF report has been saved to the server at: ${filePath}`,
+        description: `Your PDF report is downloading.`,
       });
     } catch (error) {
+      console.error('Error generating PDF report:', error);
       toast({
         title: 'Error',
         description: 'Failed to generate the PDF report.',

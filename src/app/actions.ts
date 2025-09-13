@@ -1,6 +1,5 @@
 'use server';
 
-import { generatePdfReport } from '@/ai/flows/generate-pdf-reports';
 import { chatbotAnswersNGOQueries } from '@/ai/flows/chatbot-answers-ngo-queries';
 
 type Message = {
@@ -20,19 +19,5 @@ export async function getChatbotResponse(query: string, messages: Message[]) {
     console.error('Error getting chatbot response:', error);
     // This provides a user-friendly error message while logging the actual error server-side.
     return 'I seem to be having trouble connecting. Please try again in a moment.';
-  }
-}
-
-export async function generateReport(messages: Message[], conversationId: string) {
-  const conversationHistory = messages
-    .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
-    .join('\n\n');
-    
-  try {
-    const response = await generatePdfReport({ conversationHistory, conversationId });
-    return response.filePath;
-  } catch (error) {
-    console.error('Error generating PDF report:', error);
-    throw new Error('Failed to generate PDF report.');
   }
 }
