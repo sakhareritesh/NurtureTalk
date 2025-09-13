@@ -12,8 +12,12 @@ export async function getChatbotResponse(
   conversationId: string,
   messages: Message[]
 ) {
-  if (!process.env.CHROMA_DB_URL) {
-    return 'The `CHROMA_DB_URL` environment variable is not set. Please add it to your .env file.';
+  if (
+    !process.env.PINECONE_API_KEY ||
+    !process.env.PINECONE_HOST ||
+    !process.env.PINECONE_INDEX
+  ) {
+    return 'The Pinecone credentials are not set in the `.env` file. Please add `PINECONE_API_KEY`, `PINECONE_HOST`, and `PINECONE_INDEX`.';
   }
 
   try {
