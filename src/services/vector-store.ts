@@ -19,30 +19,10 @@ type Document = {
   content: string;
 };
 
-// Function to check if credentials are set
-function areCredentialsSet() {
-  return (
-    process.env.PINECONE_API_KEY &&
-    process.env.PINECONE_INDEX &&
-    process.env.PINECONE_HOST
-  );
-}
-
 let pc: Pinecone | null = null;
-if (areCredentialsSet()) {
-  pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-} else {
-  console.warn("Pinecone credentials are not fully set. The vector store will not be available.");
+if (process.env.PINECONE_API_KEY) {
+  pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
 }
-
-
-const pineconeIndex =
-  pc && process.env.PINECONE_INDEX && process.env.PINECONE_HOST
-    ? pc.index({
-        host: process.env.PINECONE_HOST,
-        name: process.env.PINECONE_INDEX,
-      })
-    : null;
 
 // Initialize Google AI Platform client for embeddings
 const clientOptions = {
@@ -63,22 +43,39 @@ async function getEmbedding(
     ?.fields?.values?.listValue?.values?.map(v => v.numberValue!);
 }
 
+function getPineconeIndex() {
+  if (!pc || !process.env.PINECONE_INDEX || !process.env.PINECONE_HOST) {
+    console.warn("Pinecone credentials are not fully set. The vector store will not be available.");
+    return null;
+  }
+  return pc.index({
+      host: process.env.PINECONE_HOST,
+      name: process.env.PINECONE_INDEX,
+  });
+}
+
 export async function upsertVectorStore(
   docs: Document[],
   conversationId: string
 ) {
+  const pineconeIndex = getPineconeIndex();
   if (!pineconeIndex) {
-    console.warn('Pinecone connection not available. Skipping upsert.');
+    console.log('Skipping upsert because Pinecone is not configured.');
     return;
   }
 
   try {
+    console.log('Starting upsert process for', docs.length, 'documents.');
     const vectors = await Promise.all(
       docs.map(async (doc, index) => {
         const embedding = await getEmbedding(`${doc.role}: ${doc.content}`);
+        if (!embedding || embedding.length === 0) {
+          console.warn(`Could not generate embedding for doc: ${doc.content}`);
+          return null;
+        }
         return {
           id: `${conversationId}-${Date.now()}-${index}`,
-          values: embedding || [],
+          values: embedding,
           metadata: {
             text: doc.content,
             role: doc.role,
@@ -88,22 +85,24 @@ export async function upsertVectorStore(
       })
     );
 
-    const validVectors = vectors.filter(v => v.values && v.values.length > 0);
+    const validVectors = vectors.filter(v => v !== null);
     if (validVectors.length === 0) {
-      console.log('No valid documents to upsert.');
+      console.log('No valid vectors to upsert.');
       return;
     }
 
-    await pineconeIndex.upsert(validVectors);
-    console.log(`Upserted ${validVectors.length} documents to Pinecone.`);
+    console.log('Upserting', validVectors.length, 'vectors to Pinecone.');
+    await pineconeIndex.upsert(validVectors as any);
+    console.log(`Successfully upserted ${validVectors.length} documents to Pinecone.`);
   } catch (error) {
     console.error('Error upserting to Pinecone:', error);
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
+  const pineconeIndex = getPineconeIndex();
   if (!pineconeIndex) {
-    console.warn('Pinecone connection not available. Returning no results.');
+    console.log('Skipping search because Pinecone is not configured.');
     return [];
   }
 
@@ -111,6 +110,7 @@ export async function searchVectorStore(query: string, conversationId: string) {
     const queryEmbedding = await getEmbedding(query);
 
     if (!queryEmbedding) {
+      console.error('Could not generate embedding for query.');
       return [];
     }
 
