@@ -28,10 +28,13 @@ function areCredentialsSet() {
   );
 }
 
-// Initialize Pinecone client
-const pc = areCredentialsSet()
-  ? new Pinecone({ apiKey: process.env.PINECONE_API_KEY! })
-  : null;
+let pc: Pinecone | null = null;
+if (areCredentialsSet()) {
+  pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
+} else {
+  console.warn("Pinecone credentials are not fully set. The vector store will not be available.");
+}
+
 
 const pineconeIndex =
   pc && process.env.PINECONE_INDEX && process.env.PINECONE_HOST

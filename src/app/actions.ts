@@ -12,12 +12,14 @@ export async function getChatbotResponse(
   conversationId: string,
   messages: Message[]
 ) {
-  if (
-    !process.env.PINECONE_API_KEY ||
-    !process.env.PINECONE_INDEX ||
-    !process.env.PINECONE_HOST
-  ) {
-    return 'I seem to be having trouble connecting. Please make sure your Pinecone credentials in the .env file are correct and try again.';
+  if (!process.env.PINECONE_API_KEY) {
+    return 'The `PINECONE_API_KEY` environment variable is not set. Please add it to your .env file.';
+  }
+  if (!process.env.PINECONE_INDEX) {
+    return 'The `PINECONE_INDEX` environment variable is not set. Please add it to your .env file.';
+  }
+  if (!process.env.PINECONE_HOST) {
+    return 'The `PINECONE_HOST` environment variable is not set. Please find it in your Pinecone dashboard and add it to your .env file.';
   }
 
   try {
@@ -35,6 +37,6 @@ export async function getChatbotResponse(
   } catch (error) {
     console.error('Error getting chatbot response:', error);
     // This provides a user-friendly error message while logging the actual error server-side.
-    return 'I seem to be having trouble connecting. Please make sure your Pinecone credentials in the .env file are correct and try again.';
+    return 'I seem to be having trouble connecting to Pinecone. Please make sure your credentials in the .env file are correct and try again.';
   }
 }
