@@ -8,8 +8,8 @@
  */
 
 import { ChromaClient } from 'chromadb';
-import { embed } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
+import { embed } from 'genkit';
 
 const TOP_K = 5; // Number of results to fetch
 
