@@ -42,8 +42,8 @@ function getAstraDb(): Db {
   // Optional: Add a connection log to verify
   (async () => {
     try {
-      const collections = await db!.collections();
-      console.log('✅ SUCCESS: Successfully connected to AstraDB. Existing collections:', collections.map(c => c.collectionName));
+      await db!.listCollections();
+      console.log('✅ SUCCESS: Successfully connected to AstraDB.');
     } catch (e) {
       console.error("❌ CRITICAL: Failed to connect to AstraDB on initialization.", e);
     }
@@ -63,16 +63,22 @@ async function getEmbedding(text: string) {
 
 async function getOrCreateCollection() {
   const db = getAstraDb();
-  const collections = await db.collections();
-  const collectionExists = collections.some(
-    (c) => c.collectionName === COLLECTION_NAME
-  );
+  try {
+    const collections = await db.collections();
+    const collectionExists = collections.some(
+      (c) => c.collectionName === COLLECTION_NAME
+    );
 
-  if (collectionExists) {
-    return db.collection(COLLECTION_NAME);
+    if (collectionExists) {
+      return db.collection(COLLECTION_NAME);
+    }
+  } catch (error) {
+    // If list collections fails, it might be an older version of AstraDB, proceed to create
+    console.warn("Could not list collections, proceeding to create. This may not be an error.", error);
   }
 
-  console.log(`Collection '${COLLECTION_NAME}' not found. Creating new collection...`);
+
+  console.log(`Collection '${COLLECTION_NAME}' not found or couldn't be verified. Creating new collection...`);
   return db.createCollection(COLLECTION_NAME, {
     vector: { dimension: 768, metric: 'cosine' },
   });
@@ -95,13 +101,15 @@ export async function upsertVectorStore(
     const documentsToInsert = await Promise.all(
       docs.map(async (doc, index) => {
         const vector = await getEmbedding(`${doc.role}: ${doc.content}`);
-        return {
+        const docToInsert = {
           _id: `${conversationId}-${Date.now()}-${index}`,
           $vector: vector,
           text: doc.content,
           role: doc.role,
           conversationId: conversationId,
         };
+        console.log("Preparing to insert:", JSON.stringify(docToInsert, null, 2));
+        return docToInsert;
       })
     );
 
@@ -109,6 +117,8 @@ export async function upsertVectorStore(
     console.log(`✅ SUCCESS: Successfully upserted ${documentsToInsert.length} documents to Astra DB.`);
   } catch (error) {
     console.error('❌ CRITICAL: An error occurred during the Astra DB upsert process.', error);
+    // Re-throw the error so the caller knows something went wrong.
+    throw error;
   }
 }
 
@@ -131,7 +141,7 @@ export async function searchVectorStore(query: string, conversationId: string) {
 
     const results = await cursor.toArray();
     
-    console.log(`✅ SUCCESS: Found ${results.length} results in conversation '${conversationId}'.`);
+    console.log(`✅ SUCCESS: Found ${results.length} relevant documents in conversation '${conversationId}'.`);
 
     return results.map((result) => ({
       pageContent: result.text as string ?? '',

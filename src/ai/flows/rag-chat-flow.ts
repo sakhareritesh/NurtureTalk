@@ -94,20 +94,27 @@ const ragChatFlowDefinition = ai.defineFlow(
     });
     const response = output!.response;
 
-    // Don't wait for the upsert to complete to keep the response fast.
-    upsertVectorStore(
-      [
-        {
-          role: 'user',
-          content: query,
-        },
-        {
-          role: 'bot',
-          content: response,
-        },
-      ],
-      conversationId
-    );
+    // Don't wait for the upsert to complete to keep the response fast,
+    // but log any errors that might occur during the background operation.
+    (async () => {
+      try {
+        await upsertVectorStore(
+          [
+            {
+              role: 'user',
+              content: query,
+            },
+            {
+              role: 'bot',
+              content: response,
+            },
+          ],
+          conversationId
+        );
+      } catch (error) {
+        console.error('BACKGROUND_UPSERT_FAILED: Failed to save chat history to Astra DB.', error);
+      }
+    })();
 
     return { response };
   }
