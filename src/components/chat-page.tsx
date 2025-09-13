@@ -17,6 +17,18 @@ export default function ChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
+  const handleNewChat = useCallback(() => {
+    const newChat: Chat = {
+      id: uuidv4(),
+      title: "New Chat",
+      messages: [],
+      role: 'user', 
+      content: ''
+    };
+    setChats((prevChats) => [newChat, ...prevChats]);
+    setActiveChatId(newChat.id);
+  }, []);
+
   useEffect(() => {
     try {
       const savedChats = localStorage.getItem(CHAT_HISTORY_KEY);
@@ -42,18 +54,6 @@ export default function ChatPage() {
       localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chats));
     }
   }, [chats]);
-
-  const handleNewChat = useCallback(() => {
-    const newChat: Chat = {
-      id: uuidv4(),
-      title: "New Chat",
-      messages: [],
-      role: 'user', 
-      content: ''
-    };
-    setChats((prevChats) => [newChat, ...prevChats]);
-    setActiveChatId(newChat.id);
-  }, []);
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
