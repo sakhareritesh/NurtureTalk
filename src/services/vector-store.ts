@@ -36,6 +36,7 @@ function getAstraDb(): Db {
     );
   }
 
+  console.log('Attempting to connect to AstraDB...');
   const client = new DataAPIClient(token);
   db = client.db(endpoint);
 
@@ -43,9 +44,9 @@ function getAstraDb(): Db {
   (async () => {
     try {
       const collections = await db!.collections();
-      console.log('Successfully connected to AstraDB. Existing collections:', collections.map(c => c.collectionName));
+      console.log('✅ SUCCESS: Successfully connected to AstraDB. Existing collections:', collections.map(c => c.collectionName));
     } catch (e) {
-      console.error("Failed to connect to AstraDB on initialization.", e);
+      console.error("❌ CRITICAL: Failed to connect to AstraDB on initialization.", e);
     }
   })();
 
