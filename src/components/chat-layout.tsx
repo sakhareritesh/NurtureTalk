@@ -7,6 +7,7 @@ import { ChatMessages, type Message } from './chat-messages';
 import { getChatbotResponse } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { jsPDF } from 'jspdf';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -18,7 +19,7 @@ export default function ChatLayout() {
 
   useEffect(() => {
     // Generate a unique ID for the conversation on client-side mount.
-    setConversationId(crypto.randomUUID());
+    setConversationId(uuidv4());
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -27,7 +28,7 @@ export default function ChatLayout() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || !conversationId) return;
 
     const userMessage: Message = { role: 'user', content: inputValue };
     const newMessages = [...messages, userMessage];
@@ -36,18 +37,23 @@ export default function ChatLayout() {
     setIsMessageLoading(true);
 
     try {
-      const response = await getChatbotResponse(inputValue, newMessages);
+      const response = await getChatbotResponse(
+        inputValue,
+        conversationId,
+        newMessages
+      );
       const botMessage: Message = { role: 'bot', content: response };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to get a response from the chatbot.',
+        description:
+          'Failed to get a response from the chatbot. Please check your credentials.',
         variant: 'destructive',
       });
-       // Revert optimistic UI update on error
-       setMessages(prev => prev.slice(0, -1));
-       setInputValue(userMessage.content);
+      // Revert optimistic UI update on error
+      setMessages(prev => prev.slice(0, -1));
+      setInputValue(userMessage.content);
     } finally {
       setIsMessageLoading(false);
     }
@@ -98,12 +104,12 @@ export default function ChatLayout() {
         pdf.text(line, margin, y);
         y += 7;
       }
-      
+
       pdf.save(`NurtureTalk-Report-${conversationId}.pdf`);
 
       toast({
         title: 'Success',
-        description: `Your PDF report is downloading.`,
+        description: 'Your PDF report is downloading.',
         duration: 3000,
       });
     } catch (error) {
@@ -120,7 +126,7 @@ export default function ChatLayout() {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <Header 
+      <Header
         onGenerateReport={handleGenerateReport}
         isGeneratingReport={isReportLoading}
         isMessageLoading={isMessageLoading}
