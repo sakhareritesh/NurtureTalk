@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   SidebarProvider,
   Sidebar,
-  SidebarTrigger,
-  SidebarInset,
 } from "@/components/ui/sidebar";
 import ChatLayout, { type Chat } from "@/components/chat-layout";
 import { ChatHistory } from "@/components/chat-history";
@@ -34,8 +32,8 @@ export default function ChatPage() {
       const savedChats = localStorage.getItem(CHAT_HISTORY_KEY);
       if (savedChats) {
         const parsedChats = JSON.parse(savedChats);
-        setChats(parsedChats);
         if (parsedChats.length > 0) {
+          setChats(parsedChats);
           setActiveChatId(parsedChats[0].id);
         } else {
           handleNewChat();
@@ -98,8 +96,8 @@ export default function ChatPage() {
 
   return (
     <SidebarProvider>
-      <div className="flex h-full bg-zinc-900">
-        <Sidebar collapsible="icon" className="w-80 border-r border-zinc-800 bg-zinc-900">
+      <div className="flex h-screen bg-zinc-900">
+        <Sidebar collapsible="offcanvas" className="w-80 border-r border-zinc-800 bg-zinc-900">
           <ChatHistory
             chats={chats}
             activeChatId={activeChatId}
@@ -108,12 +106,12 @@ export default function ChatPage() {
             onDeleteChat={handleDeleteChat}
           />
         </Sidebar>
-        <SidebarInset className="flex-1 bg-background">
+        <div className="flex-1 bg-background">
           <ChatLayout
             activeChat={activeChat}
             onMessagesChange={handleMessagesChange}
           />
-        </SidebarInset>
+        </div>
       </div>
     </SidebarProvider>
   );
