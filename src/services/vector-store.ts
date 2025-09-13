@@ -7,7 +7,7 @@
  * - searchVectorStore - Searches a ChromaDB collection for relevant documents.
  */
 
-import { ChromaClient, CohereEmbeddingFunction } from 'chromadb';
+import { ChromaClient } from 'chromadb';
 import { embed } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
