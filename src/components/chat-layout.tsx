@@ -140,12 +140,14 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         onToggleSidebar={toggleSidebar}
       />
       <ChatMessages messages={activeChat?.messages ?? []} isLoading={isMessageLoading} />
-      <ChatInput
-        value={inputValue}
-        onChange={handleInputChange}
-        onSubmit={handleSubmit}
-        isLoading={isMessageLoading || !activeChat}
-      />
+      <div className="mx-auto w-full max-w-3xl">
+        <ChatInput
+          value={inputValue}
+          onChange={handleInputChange}
+          onSubmit={handleSubmit}
+          isLoading={isMessageLoading || !activeChat}
+        />
+      </div>
     </div>
   );
 }

@@ -51,7 +51,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             )}
             <div
               className={cn(
-                'max-w-md rounded-2xl px-4 py-3 text-base shadow-sm',
+                'max-w-[calc(100%-4rem)] rounded-2xl px-4 py-3 text-base shadow-sm break-words',
                 {
                   'bg-primary text-primary-foreground rounded-br-none': message.role === 'user',
                   'bg-card text-card-foreground rounded-bl-none': message.role === 'bot',
