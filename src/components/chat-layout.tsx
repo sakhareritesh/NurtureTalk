@@ -104,6 +104,7 @@ export default function ChatLayout() {
       toast({
         title: 'Success',
         description: `Your PDF report is downloading.`,
+        duration: 3000,
       });
     } catch (error) {
       console.error('Error generating PDF report:', error);
