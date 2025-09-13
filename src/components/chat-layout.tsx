@@ -32,6 +32,10 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
     setInputValue(e.target.value);
   };
 
+  const handlePromptSelect = (prompt: string) => {
+    setInputValue(prompt);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!inputValue.trim() || !activeChat) return;
@@ -57,7 +61,6 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
           "Failed to get a response from the chatbot. Please check your credentials.",
         variant: "destructive",
       });
-      // Revert optimistic UI update on error
       onMessagesChange(activeChat.id, newMessages);
       setInputValue(userMessage.content);
     } finally {
@@ -78,7 +81,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
     try {
       const pdf = new jsPDF();
       const conversationText = activeChat.messages
-        .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
+        .map(msg => `${msg.role === 'bot' ? 'Ai Chat' : 'You'}: ${msg.content}`)
         .join('\n\n');
 
       pdf.setFont('helvetica');
@@ -91,7 +94,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
       let y = margin;
 
       pdf.setFont('helvetica', 'bold');
-      pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
+      pdf.text('Ai Chat Conversation Report', pageWidth / 2, y, { align: 'center' });
       y += 10;
       pdf.setFont('helvetica', 'normal');
 
@@ -102,7 +105,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
           pdf.addPage();
           y = margin;
           pdf.setFont('helvetica', 'bold');
-          pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
+          pdf.text('Ai Chat Conversation Report', pageWidth / 2, y, { align: 'center' });
           y += 10;
           pdf.setFont('helvetica', 'normal');
         }
@@ -110,7 +113,7 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         y += 7;
       }
       
-      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
+      pdf.save(`AiChat-Report-${activeChat.id}.pdf`);
 
       toast({
         title: "Success",
@@ -139,7 +142,11 @@ export default function ChatLayout({ activeChat, onMessagesChange }: ChatLayoutP
         hasMessages={!!activeChat && activeChat.messages.length > 0}
         onToggleSidebar={toggleSidebar}
       />
-      <ChatMessages messages={activeChat?.messages ?? []} isLoading={isMessageLoading} />
+      <ChatMessages 
+        messages={activeChat?.messages ?? []} 
+        isLoading={isMessageLoading}
+        onPromptSelect={handlePromptSelect}
+      />
       <div className="mx-auto w-full max-w-3xl">
         <ChatInput
           value={inputValue}

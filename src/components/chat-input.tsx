@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import React, { useRef, useEffect } from 'react';
@@ -39,28 +39,31 @@ export function ChatInput({ value, onChange, onSubmit, isLoading }: ChatInputPro
   };
 
   return (
-    <div className="border-t bg-card px-4 py-3 sm:px-6">
-      <form onSubmit={onSubmit} className="relative flex items-end gap-2">
+    <div className="bg-background px-4 py-3 sm:px-6">
+      <form onSubmit={onSubmit} className="relative flex items-center">
         <Textarea
           ref={textareaRef}
           value={value}
           onChange={onChange}
           onKeyDown={handleKeyDown}
-          placeholder="Ask me anything..."
-          className="max-h-36 min-h-12 w-full resize-none rounded-2xl border-input bg-background pr-14 text-base"
+          placeholder="How can I help you?"
+          className="max-h-36 min-h-[52px] w-full resize-none rounded-2xl border-zinc-700 bg-zinc-800 text-white placeholder:text-zinc-400 pl-4 pr-16 text-base"
           rows={1}
           disabled={isLoading}
         />
         <Button
           type="submit"
           size="icon"
-          className="absolute bottom-2.5 right-2.5 h-9 w-9 rounded-full bg-primary text-primary-foreground shadow-md transition-all duration-300 hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute right-4 top-1/2 -translate-y-1/2 h-9 w-9 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-300 disabled:bg-zinc-800 disabled:text-zinc-500"
           disabled={isLoading || value.trim() === ''}
           aria-label="Send message"
         >
-          <ArrowUp className="h-5 w-5" />
+          <Send className="h-5 w-5" />
         </Button>
       </form>
+      <p className="text-xs text-center text-zinc-500 mt-2">
+        Ai Chat may produce inaccurate information about people, places, or facts.
+      </p>
     </div>
   );
 }

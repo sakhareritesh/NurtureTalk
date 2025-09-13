@@ -35,7 +35,7 @@ export default function ChatPage() {
       console.error("Failed to load chat history from localStorage:", error);
       handleNewChat();
     }
-  }, []);
+  }, [handleNewChat]);
 
   useEffect(() => {
     if (chats.length > 0) {
@@ -82,10 +82,10 @@ export default function ChatPage() {
     setChats((prevChats) =>
       prevChats.map((chat) => {
         if (chat.id === chatId) {
-          // Create a title from the first user message if it's a new chat
+          const firstUserMessage = messages.find(m => m.role === 'user');
           const newTitle =
-            chat.title === "New Chat" && messages.length > 0
-              ? messages[0].content.substring(0, 30)
+            chat.title === "New Chat" && firstUserMessage
+              ? firstUserMessage.content.substring(0, 30)
               : chat.title;
           return { ...chat, title: newTitle, messages };
         }
@@ -98,8 +98,8 @@ export default function ChatPage() {
 
   return (
     <SidebarProvider>
-      <div className="flex h-full">
-        <Sidebar collapsible="offcanvas" className="w-80 border-r">
+      <div className="flex h-full bg-zinc-900">
+        <Sidebar collapsible="icon" className="w-80 border-r border-zinc-800 bg-zinc-900">
           <ChatHistory
             chats={chats}
             activeChatId={activeChatId}
@@ -108,7 +108,7 @@ export default function ChatPage() {
             onDeleteChat={handleDeleteChat}
           />
         </Sidebar>
-        <SidebarInset className="flex-1">
+        <SidebarInset className="flex-1 bg-background">
           <ChatLayout
             activeChat={activeChat}
             onMessagesChange={handleMessagesChange}

@@ -2,7 +2,7 @@ import ChatPage from "@/components/chat-page";
 
 export default function Home() {
   return (
-    <main className="flex h-[100dvh] flex-col">
+    <main className="flex h-screen flex-col bg-background">
       <ChatPage />
     </main>
   );
