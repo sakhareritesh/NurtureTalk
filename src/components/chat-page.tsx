@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   SidebarProvider,
   Sidebar,
+  SidebarInset,
 } from "@/components/ui/sidebar";
 import ChatLayout, { type Chat } from "@/components/chat-layout";
 import { ChatHistory } from "@/components/chat-history";
@@ -106,12 +107,12 @@ export default function ChatPage() {
             onDeleteChat={handleDeleteChat}
           />
         </Sidebar>
-        <div className="flex-1 bg-background">
+        <SidebarInset>
           <ChatLayout
             activeChat={activeChat}
             onMessagesChange={handleMessagesChange}
           />
-        </div>
+        </SidebarInset>
       </div>
     </SidebarProvider>
   );
