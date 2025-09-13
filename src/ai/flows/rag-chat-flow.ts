@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview A RAG-powered chatbot that uses Pinecone for long-term memory.
+ * @fileOverview A RAG-powered chatbot that uses Astra DB for long-term memory.
  *
  * - ragChatFlow - A function that handles the chatbot conversation and responds to user queries using a vector database.
  * - RagChatInput - The input type for the ragChatFlow function.
