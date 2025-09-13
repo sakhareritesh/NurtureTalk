@@ -7,7 +7,7 @@
  * - searchVectorStore - Searches an Astra DB collection for relevant documents.
  */
 
-import { DataAPIClient } from '@datastax/astra-db-ts';
+import { DataAPIClient, Db } from '@datastax/astra-db-ts';
 import { embed } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
@@ -19,30 +19,38 @@ type Document = {
   content: string;
 };
 
-// Singleton instance of Astra DB Client
-let client: DataAPIClient | null = null;
+// Singleton instance of Astra DB
+let db: Db | null = null;
 
-function getAstraDbClient(): DataAPIClient {
-  if (client) {
-    return client;
+function getAstraDb(): Db {
+  if (db) {
+    return db;
   }
-  if (
-    !process.env.ASTRA_DB_ENDPOINT ||
-    !process.env.ASTRA_DB_APPLICATION_TOKEN
-  ) {
+
+  const endpoint = process.env.ASTRA_DB_ENDPOINT;
+  const token = process.env.ASTRA_DB_APPLICATION_TOKEN;
+
+  if (!endpoint || !token) {
     throw new Error(
-      'Astra DB credentials are not set in environment variables.'
+      'Astra DB credentials are not set in environment variables. Please set ASTRA_DB_ENDPOINT and ASTRA_DB_APPLICATION_TOKEN.'
     );
   }
-  client = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN, {
-    httpOptions: {
-      fetch,
-    },
-    dbOptions: {
-      endpoint: process.env.ASTRA_DB_ENDPOINT,
-    },
-  });
-  return client;
+
+  const client = new DataAPIClient(token);
+  db = client.db(endpoint);
+
+  // Optional: Add a connection log to verify
+  (async () => {
+    try {
+      const collections = await db!.collections();
+      console.log('Successfully connected to AstraDB. Existing collections:', collections.map(c => c.collectionName));
+    } catch (e) {
+      console.error("Failed to connect to AstraDB on initialization.", e);
+    }
+  })();
+
+
+  return db;
 }
 
 async function getEmbedding(text: string) {
@@ -53,14 +61,18 @@ async function getEmbedding(text: string) {
   return embedding;
 }
 
-async function getOrCreateCollection(db: ReturnType<typeof getAstraDbClient>) {
+async function getOrCreateCollection() {
+  const db = getAstraDb();
   const collections = await db.collections();
   const collectionExists = collections.some(
     (c) => c.collectionName === COLLECTION_NAME
   );
+
   if (collectionExists) {
     return db.collection(COLLECTION_NAME);
   }
+
+  console.log(`Collection '${COLLECTION_NAME}' not found. Creating new collection...`);
   return db.createCollection(COLLECTION_NAME, {
     vector: { dimension: 768, metric: 'cosine' },
   });
@@ -72,8 +84,7 @@ export async function upsertVectorStore(
 ) {
   console.log(`--- Starting upsertVectorStore for conversation: ${conversationId} ---`);
   try {
-    const dbClient = getAstraDbClient();
-    const collection = await getOrCreateCollection(dbClient);
+    const collection = await getOrCreateCollection();
 
     console.log(`Processing ${docs.length} documents for upsert.`);
     if (docs.length === 0) {
@@ -104,9 +115,7 @@ export async function upsertVectorStore(
 export async function searchVectorStore(query: string, conversationId: string) {
   console.log(`--- Starting searchVectorStore for conversation: ${conversationId} ---`);
   try {
-    const dbClient = getAstraDbClient();
-    const collection = await getOrCreateCollection(dbClient);
-
+    const collection = await getOrCreateCollection();
     const queryVector = await getEmbedding(query);
 
     const cursor = await collection.find(
