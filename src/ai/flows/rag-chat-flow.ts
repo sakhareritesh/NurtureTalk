@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview A RAG-powered chatbot that uses Astra DB for long-term memory.
+ * @fileOverview A RAG-powered chatbot that uses a vector database for long-term memory.
  *
  * - ragChatFlow - A function that handles the chatbot conversation and responds to user queries using a vector database.
  * - RagChatInput - The input type for the ragChatFlow function.
@@ -58,6 +58,7 @@ When a user asks a question, you should:
 3.  **Leverage Past Conversations:** Use the provided context from previous interactions to inform your answer and maintain a coherent, long-term conversation.
 4.  **Maintain a Professional and Supportive Tone:** You are an expert guide, so be encouraging and clear.
 5.  **Stay on Topic:** If the user asks a question outside the scope of NGOs, civil society, or related topics, politely steer them back by saying: "I am NurtureTalk, an AI assistant focused on the NGO sector. I can answer questions about topics like fundraising, governance, impact measurement, and more. How can I help you with that?"
+6.  **Handle PDF Requests:** If the user asks for a summary or to "generate a PDF," you must first provide a concise summary of the conversation. Then, you MUST include the full summary again, enclosed within a <SUMMARY> tag like this: "<SUMMARY>Your full summary content here.</SUMMARY>". This is a special instruction for the application to create a downloadable file.
 
 Use the following context from past conversations to answer the user's query:
 -- CONTEXT --
@@ -84,9 +85,11 @@ const ragChatFlowDefinition = ai.defineFlow(
     outputSchema: RagChatOutputSchema,
   },
   async ({ query, conversationId, conversationHistory }) => {
+    // 1. Search for relevant documents in the vector store.
     const relevantDocs = await searchVectorStore(query, conversationId);
     const context = relevantDocs.map(d => d.pageContent).join('\n\n');
 
+    // 2. Call the AI model to get the response.
     const { output } = await prompt({
       query,
       context,
@@ -94,8 +97,8 @@ const ragChatFlowDefinition = ai.defineFlow(
     });
     const response = output!.response;
 
-    // Don't wait for the upsert to complete to keep the response fast,
-    // but log any errors that might occur during the background operation.
+    // 3. In the background, save the new exchange to the vector store for future context.
+    // We don't wait for this to complete to keep the response fast.
     (async () => {
       try {
         await upsertVectorStore(
@@ -112,10 +115,11 @@ const ragChatFlowDefinition = ai.defineFlow(
           conversationId
         );
       } catch (error) {
-        console.error('BACKGROUND_UPSERT_FAILED: Failed to save chat history to Astra DB.', error);
+        console.error('BACKGROUND_UPSERT_FAILED: Failed to save chat history.', error);
       }
     })();
 
+    // 4. Return the AI's response to the user.
     return { response };
   }
 );
