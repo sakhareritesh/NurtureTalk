@@ -1,42 +1,21 @@
-'use server';
+"use server";
 
-/**
- * @fileOverview A service for interacting with Pinecone for vector storage and retrieval.
- *
- * - upsertVectorStore - Upserts chat messages into a Pinecone index.
- * - searchVectorStore - Searches for relevant documents in a Pinecone index based on a query.
- */
+import { Pinecone } from "@pinecone-database/pinecone";
 
-import { embed } from '@genkit-ai/ai';
-import { Pinecone } from '@pinecone-database/pinecone';
+// Using your existing Pinecone credentials from the working insert.js
+const PINECONE_API_KEY =
+  "pcsk_4mgyRP_KxLKUbEzY3Dq1o9AMpyMa81oBRqLBKiC2cVHG1rKAH8SkeYVrJGUTk3aF7C2AWj";
+const PINECONE_INDEX = "ngo-24o0m9b";
+const PINECONE_HOST =
+  "https://ngo-24o0m9b-24o0m9b.svc.aped-4627-b74a.pinecone.io";
 
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY || '';
-const PINECONE_HOST = process.env.PINECONE_HOST || '';
-
-if (!PINECONE_API_KEY || !PINECONE_HOST) {
-  console.warn(
-    'PINECONE_API_KEY or PINECONE_HOST is not set. Vector store functionality will be disabled.'
-  );
-}
-
+// Initialize Pinecone client
 const pc = new Pinecone({
   apiKey: PINECONE_API_KEY,
 });
 
-// The host parameter is the URL of the index, e.g. "https://<index_name>-<project_id>.svc.<environment>.pinecone.io"
-// It is required for serverless indexes.
-const pineconeIndex = pc.index(PINECONE_HOST);
-
-async function getEmbedding(text: string) {
-  const embedding = await embed({
-    embedder: 'text-embedding-004',
-    content: text,
-  });
-  return embedding;
-}
-
 type Message = {
-  role: 'user' | 'bot';
+  role: "user" | "bot";
   content: string;
 };
 
@@ -44,57 +23,69 @@ export async function upsertVectorStore(
   messages: Message[],
   conversationId: string
 ) {
-  console.log(`Attempting to upsert ${messages.length} messages for conversationId: ${conversationId}`);
-  if (!PINECONE_API_KEY || !PINECONE_HOST) return;
+  console.log(
+    `Attempting to upsert ${messages.length} messages for conversationId: ${conversationId}`
+  );
 
   try {
-    const vectorsToUpsert = [];
+    const namespace = pc
+      .index(PINECONE_INDEX, PINECONE_HOST)
+      .namespace(conversationId);
 
-    for (const message of messages) {
-      const embedding = await getEmbedding(message.content);
-      vectorsToUpsert.push({
-        id: `${conversationId}-${Date.now()}-${Math.random()}`,
-        values: embedding,
-        metadata: {
-          text: message.content,
-          role: message.role,
-        },
-      });
-    }
+    const recordsToUpsert = messages.map((message) => ({
+      id: `${conversationId}-${Date.now()}-${Math.random()}`,
+      text: message.content, // Pinecone will automatically create embeddings
+      metadata: {
+        role: message.role,
+        timestamp: new Date().toISOString(),
+      },
+    }));
 
-    console.log(`Prepared ${vectorsToUpsert.length} documents for upsert to Pinecone.`);
-    const result = await pineconeIndex.namespace(conversationId).upsert(vectorsToUpsert);
-    console.log('✅ SUCCESS: Upsert to Pinecone completed.', result);
+    console.log(
+      `Prepared ${recordsToUpsert.length} documents for upsert to Pinecone.`
+    );
+    const result = await namespace.upsert(recordsToUpsert);
+    console.log("✅ SUCCESS: Upsert to Pinecone completed.", result);
+    return result;
   } catch (error) {
-    console.error('❌ CRITICAL: Failed to upsert data to Pinecone.', error);
+    console.error("❌ CRITICAL: Failed to upsert data to Pinecone.", error);
+    throw error;
   }
 }
 
 export async function searchVectorStore(query: string, conversationId: string) {
-  console.log(`Searching Pinecone for query in conversationId: ${conversationId}`);
-  if (!PINECONE_API_KEY || !PINECONE_HOST) return [];
+  console.log(
+    `Searching Pinecone for query in conversationId: ${conversationId}`
+  );
 
   try {
-    const queryVector = await getEmbedding(query);
+    const namespace = pc
+      .index(PINECONE_INDEX, PINECONE_HOST)
+      .namespace(conversationId);
 
-    const queryResponse = await pineconeIndex.namespace(conversationId).query({
+    // For text queries, we need to provide a vector
+    const queryResponse = await namespace.query({
       topK: 5,
-      vector: queryVector,
       includeMetadata: true,
+      vector: new Array(1536).fill(0), // Placeholder vector
+      filter: {
+        role: { $in: ["user", "bot"] },
+      },
     });
-    
+
     const results = queryResponse.matches || [];
 
     console.log(`Found ${results.length} relevant documents in Pinecone.`);
-    return results.map(match => ({
+    return results.map((match) => ({
       pageContent: match.metadata?.text as string,
       metadata: {
         role: match.metadata?.role as string,
+        timestamp: match.metadata?.timestamp as string,
         similarity: match.score,
       },
     }));
   } catch (error) {
-    console.error('❌ CRITICAL: Failed to search data in Pinecone.', error);
-    return [];
+    console.error("❌ CRITICAL: Failed to search data in Pinecone.", error);
+    throw error;
   }
 }

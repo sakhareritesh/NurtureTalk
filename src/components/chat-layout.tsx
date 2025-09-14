@@ -69,53 +69,71 @@ export default function ChatLayout({ activeChat, onMessagesChange, onToggleSideb
   const handleGenerateReport = async () => {
     if (!activeChat || activeChat.messages.length === 0) {
       toast({
-        title: "Cannot generate report",
+        title: "Cannot generate summary",
         description: "There are no messages in the conversation yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const lastBotMessage = [...activeChat.messages].reverse().find(msg => msg.role === 'bot');
+
+    if (!lastBotMessage) {
+      toast({
+        title: "Cannot generate summary",
+        description: "There are no responses from the bot yet.",
+        variant: "destructive",
       });
       return;
     }
 
     setIsReportLoading(true);
     try {
-      const pdf = new jsPDF();
-      const conversationText = activeChat.messages
-        .map(msg => `${msg.role === 'bot' ? 'NurtureTalk' : 'You'}: ${msg.content}`)
-        .join('\n\n');
-
-      pdf.setFont('helvetica');
-      pdf.setFontSize(12);
-
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: 'a4'
+      });
+      
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 15;
+      const margin = 40;
       const usableWidth = pageWidth - margin * 2;
       let y = margin;
 
+      // Add Title
       pdf.setFont('helvetica', 'bold');
-      pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
-      y += 10;
+      pdf.setFontSize(18);
+      pdf.text('Chat Summary', pageWidth / 2, y, { align: 'center' });
+      y += 25;
+
+      // Add Timestamp
       pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setTextColor(150);
+      const timestamp = new Date().toLocaleString();
+      pdf.text(`Generated on: ${timestamp}`, pageWidth / 2, y, { align: 'center' });
+      y += 40;
 
-      const textLines = pdf.splitTextToSize(conversationText, usableWidth);
-
-      for (const line of textLines) {
-        if (y + 10 > pageHeight - margin) {
+      // Add Final Response Content
+      pdf.setTextColor(0);
+      pdf.setFontSize(12);
+      
+      const textLines = pdf.splitTextToSize(lastBotMessage.content, usableWidth);
+      
+      textLines.forEach((line: string) => {
+        if (y + 12 > pdf.internal.pageSize.getHeight() - margin) {
           pdf.addPage();
           y = margin;
-          pdf.setFont('helvetica', 'bold');
-          pdf.text('NurtureTalk Conversation Report', pageWidth / 2, y, { align: 'center' });
-          y += 10;
-          pdf.setFont('helvetica', 'normal');
         }
         pdf.text(line, margin, y);
-        y += 7;
-      }
-      
-      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
+        y += 18; // Line height
+      });
+
+      pdf.save(`NurtureTalk-Summary.pdf`);
 
       toast({
         title: "Success",
-        description: "Your PDF report is downloading.",
+        description: "Your PDF summary is downloading.",
         duration: 3000,
       });
 
@@ -123,7 +141,7 @@ export default function ChatLayout({ activeChat, onMessagesChange, onToggleSideb
       console.error("Error generating PDF report:", error);
       toast({
         title: "Error",
-        description: "Failed to generate the PDF report.",
+        description: "Failed to generate the PDF summary.",
         variant: "destructive",
       });
     } finally {
