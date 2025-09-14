@@ -3,7 +3,7 @@
 import { HandHeart, LoaderCircle, User, Briefcase, DollarSign, Lightbulb, Download } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Button } from './ui/button';
 import { jsPDF } from "jspdf";
 import { useToast } from "@/hooks/use-toast";
@@ -193,7 +193,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
           </div>
         )}
         {messages.map((message, index) => (
-          <MessageItem key={index} message={message} />
+          <MessageItem key={`${message.role}-${message.content}-${index}`} message={message} />
         ))}
         {isLoading && (
            <div className="flex items-start gap-4 animate-in fade-in duration-300">
