@@ -36,9 +36,10 @@ type ChatMessagesProps = {
   messages: Message[];
   isLoading: boolean;
   onPromptSelect: (prompt: string) => void;
+  showWelcomeScreen: boolean;
 };
 
-export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, onPromptSelect, showWelcomeScreen }: ChatMessagesProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -160,7 +161,7 @@ export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessag
   return (
     <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        {messages.length === 0 && !isLoading && (
+        {showWelcomeScreen && (
           <div className="flex flex-col items-center justify-center pt-8 text-center animate-in fade-in duration-500">
              <h1 className="text-4xl font-bold text-white mb-8">NurtureTalk</h1>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-5xl">

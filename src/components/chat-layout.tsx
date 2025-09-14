@@ -21,13 +21,17 @@ export default function ChatLayout({ activeChatId, onNewChat, onChatTitleChange,
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isMessageLoading, setIsMessageLoading] = useState(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (activeChatId) {
       const allChats: Chat[] = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
       const activeChat = allChats.find(chat => chat.id === activeChatId);
-      setMessages(activeChat?.messages || []);
+      const currentMessages = activeChat?.messages || [];
+      setMessages(currentMessages);
+      setShowWelcomeScreen(currentMessages.length === 0);
+      setInputValue(""); // Clear input when chat changes
     }
   }, [activeChatId]);
 
@@ -51,10 +55,16 @@ export default function ChatLayout({ activeChatId, onNewChat, onChatTitleChange,
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
+    if (showWelcomeScreen) {
+      setShowWelcomeScreen(false);
+    }
   };
 
   const handlePromptSelect = (prompt: string) => {
     setInputValue(prompt);
+    if (showWelcomeScreen) {
+      setShowWelcomeScreen(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -104,6 +114,7 @@ export default function ChatLayout({ activeChatId, onNewChat, onChatTitleChange,
         messages={messages} 
         isLoading={isMessageLoading}
         onPromptSelect={handlePromptSelect}
+        showWelcomeScreen={showWelcomeScreen}
       />
       <div className="w-full">
         <ChatInput
