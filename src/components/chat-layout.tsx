@@ -1,127 +1,175 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Header } from "./header";
 import { ChatInput } from "./chat-input";
 import { ChatMessages, type Message } from "./chat-messages";
 import { getChatbotResponse } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
-import type { Chat } from "./chat-page";
+import { jsPDF } from "jspdf";
+import { upsertVectorStore } from "@/services/vector-store";
 
-const CHAT_HISTORY_KEY = "chat-history";
+export interface Chat {
+  id: string;
+  title: string;
+  messages: Message[];
+}
 
 type ChatLayoutProps = {
-  activeChatId: string | null;
-  onNewChat: () => void;
-  onChatTitleChange: (chatId: string, newTitle: string) => void;
+  activeChat: Chat | null;
+  onMessagesChange: (chatId: string, messages: Message[]) => void;
   onToggleSidebar: () => void;
 };
 
-export default function ChatLayout({ activeChatId, onNewChat, onChatTitleChange, onToggleSidebar }: ChatLayoutProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ChatLayout({
+  activeChat,
+  onMessagesChange,
+  onToggleSidebar,
+}: ChatLayoutProps) {
   const [inputValue, setInputValue] = useState("");
   const [isMessageLoading, setIsMessageLoading] = useState(false);
-  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
+  const [isReportLoading, setIsReportLoading] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (activeChatId) {
-      const allChats: Chat[] = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
-      const activeChat = allChats.find(chat => chat.id === activeChatId);
-      const currentMessages = activeChat?.messages || [];
-      setMessages(currentMessages);
-      setShowWelcomeScreen(currentMessages.length === 0);
-      setInputValue(""); // Clear input when chat changes
-    }
-  }, [activeChatId]);
-
-  const updateLocalStorage = (chatId: string, updatedMessages: Message[]) => {
-    const allChats: Chat[] = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
-    const chatIndex = allChats.findIndex(chat => chat.id === chatId);
-
-    if (chatIndex !== -1) {
-      allChats[chatIndex].messages = updatedMessages;
-      
-      const firstUserMessage = updatedMessages.find(m => m.role === 'user');
-      if (allChats[chatIndex].title === "New Chat" && firstUserMessage) {
-        const newTitle = firstUserMessage.content.substring(0, 30);
-        allChats[chatIndex].title = newTitle;
-        onChatTitleChange(chatId, newTitle);
-      }
-      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(allChats));
-    }
-  };
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
-    if (showWelcomeScreen) {
-      setShowWelcomeScreen(false);
-    }
   };
 
   const handlePromptSelect = (prompt: string) => {
     setInputValue(prompt);
-    if (showWelcomeScreen) {
-      setShowWelcomeScreen(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!inputValue.trim() || !activeChatId) return;
+    if (!inputValue.trim() || !activeChat) return;
 
     const userMessage: Message = { role: "user", content: inputValue };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    updateLocalStorage(activeChatId, newMessages);
+    const newMessages = [...activeChat.messages, userMessage];
     setInputValue("");
     setIsMessageLoading(true);
 
     try {
+      
+      await upsertVectorStore([userMessage], activeChat.id);
+
+      
       const response = await getChatbotResponse(
         inputValue,
-        activeChatId,
+        activeChat.id,
         newMessages
       );
       const botMessage: Message = { role: "bot", content: response };
-      const finalMessages = [...newMessages, botMessage];
-      setMessages(finalMessages);
-      updateLocalStorage(activeChatId, finalMessages);
+      const updatedMessages = [...newMessages, botMessage];
+
+      
+      await upsertVectorStore([botMessage], activeChat.id);
+
+      
+      onMessagesChange(activeChat.id, updatedMessages);
     } catch (error) {
+      console.error("Chat error:", error);
       toast({
         title: "Error",
-        description:
-          "Failed to get a response from the chatbot. Please check your credentials.",
+        description: "Failed to process your message. Please try again.",
         variant: "destructive",
       });
-      // Revert to previous state on error
-      setMessages(newMessages);
       setInputValue(userMessage.content);
     } finally {
       setIsMessageLoading(false);
     }
   };
 
+  const handleGenerateReport = async () => {
+    if (!activeChat || activeChat.messages.length === 0) {
+      toast({
+        title: "Cannot generate report",
+        description: "There are no messages in the conversation yet.",
+      });
+      return;
+    }
+
+    setIsReportLoading(true);
+    try {
+      const pdf = new jsPDF();
+      const conversationText = activeChat.messages
+        .map(
+          (msg) =>
+            `${msg.role === "bot" ? "NurtureTalk" : "You"}: ${msg.content}`
+        )
+        .join("\n\n");
+
+      pdf.setFont("helvetica");
+      pdf.setFontSize(12);
+
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 15;
+      const usableWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.text("NurtureTalk Conversation Report", pageWidth / 2, y, {
+        align: "center",
+      });
+      y += 10;
+      pdf.setFont("helvetica", "normal");
+
+      const textLines = pdf.splitTextToSize(conversationText, usableWidth);
+
+      for (const line of textLines) {
+        if (y + 10 > pageHeight - margin) {
+          pdf.addPage();
+          y = margin;
+          pdf.setFont("helvetica", "bold");
+          pdf.text("NurtureTalk Conversation Report", pageWidth / 2, y, {
+            align: "center",
+          });
+          y += 10;
+          pdf.setFont("helvetica", "normal");
+        }
+        pdf.text(line, margin, y);
+        y += 7;
+      }
+
+      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
+
+      toast({
+        title: "Success",
+        description: "Your PDF report is downloading.",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error("Error generating PDF report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate the PDF report.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col bg-background relative">
-       <Header
+      <Header
+        onGenerateReport={handleGenerateReport}
+        isGeneratingReport={isReportLoading}
         isMessageLoading={isMessageLoading}
-        hasMessages={messages.length > 0}
+        hasMessages={!!activeChat && activeChat.messages.length > 0}
         onToggleSidebar={onToggleSidebar}
       />
-      <ChatMessages 
-        messages={messages} 
+      <ChatMessages
+        messages={activeChat?.messages ?? []}
         isLoading={isMessageLoading}
         onPromptSelect={handlePromptSelect}
-        showWelcomeScreen={showWelcomeScreen}
       />
       <div className="w-full">
         <ChatInput
           value={inputValue}
           onChange={handleInputChange}
           onSubmit={handleSubmit}
-          isLoading={isMessageLoading || !activeChatId}
+          isLoading={isMessageLoading || !activeChat}
         />
       </div>
     </div>

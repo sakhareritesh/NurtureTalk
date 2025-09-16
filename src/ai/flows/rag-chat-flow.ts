@@ -1,36 +1,34 @@
-'use server';
+"use server";
 
 /**
- * @fileOverview A RAG-powered chatbot that uses a vector database for long-term memory.
+ * @fileOverview A RAG-powered chatbot that uses Pinecone for long-term memory.
  *
  * - ragChatFlow - A function that handles the chatbot conversation and responds to user queries using a vector database.
- * - RagChatInput - The input type for the ragChatFlow function.
- * - RagChatOutput - The return type for the ragChatFlow function.
  */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { searchVectorStore, upsertVectorStore } from '@/services/vector-store';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
+import { searchVectorStore, upsertVectorStore } from "@/services/vector-store";
 
 const RagChatInputSchema = z.object({
-  query: z.string().describe('The user query related to NGO activities.'),
+  query: z.string().describe("The user query related to NGO activities."),
   conversationId: z
     .string()
-    .describe('A unique identifier for the conversation.'),
+    .describe("A unique identifier for the conversation."),
   conversationHistory: z
     .array(
       z.object({
-        role: z.enum(['user', 'bot']),
+        role: z.enum(["user", "bot"]),
         content: z.string(),
       })
     )
     .optional()
-    .describe('The recent history of the conversation.'),
+    .describe("The recent history of the conversation."),
 });
 export type RagChatInput = z.infer<typeof RagChatInputSchema>;
 
 const RagChatOutputSchema = z.object({
-  response: z.string().describe('The chatbot response to the user query.'),
+  response: z.string().describe("The chatbot response to the user query."),
 });
 export type RagChatOutput = z.infer<typeof RagChatOutputSchema>;
 
@@ -39,11 +37,11 @@ export async function ragChatFlow(input: RagChatInput): Promise<RagChatOutput> {
 }
 
 const prompt = ai.definePrompt({
-  name: 'ragChatPrompt',
+  name: "ragChatPrompt",
   input: {
     schema: z.object({
       query: RagChatInputSchema.shape.query,
-      context: z.string().describe('Relevant context from past conversations.'),
+      context: z.string().describe("Relevant context from past conversations."),
       conversationHistory: RagChatInputSchema.shape.conversationHistory,
     }),
   },
@@ -58,7 +56,6 @@ When a user asks a question, you should:
 3.  **Leverage Past Conversations:** Use the provided context from previous interactions to inform your answer and maintain a coherent, long-term conversation.
 4.  **Maintain a Professional and Supportive Tone:** You are an expert guide, so be encouraging and clear.
 5.  **Stay on Topic:** If the user asks a question outside the scope of NGOs, civil society, or related topics, politely steer them back by saying: "I am NurtureTalk, an AI assistant focused on the NGO sector. I can answer questions about topics like fundraising, governance, impact measurement, and more. How can I help you with that?"
-6.  **Handle PDF Requests:** If the user asks for a summary or to "generate a PDF," you must first provide a concise summary of the conversation. Then, you MUST include the full summary again, enclosed within a <SUMMARY> tag like this: "<SUMMARY>Your full summary content here.</SUMMARY>". This is a special instruction for the application to create a downloadable file.
 
 Use the following context from past conversations to answer the user's query:
 -- CONTEXT --
@@ -80,16 +77,14 @@ Recent History:
 
 const ragChatFlowDefinition = ai.defineFlow(
   {
-    name: 'ragChatFlow',
+    name: "ragChatFlow",
     inputSchema: RagChatInputSchema,
     outputSchema: RagChatOutputSchema,
   },
   async ({ query, conversationId, conversationHistory }) => {
-    // 1. Search for relevant documents in the vector store.
     const relevantDocs = await searchVectorStore(query, conversationId);
-    const context = relevantDocs.map(d => d.pageContent).join('\n\n');
+    const context = relevantDocs.map((d) => d.pageContent).join("\n\n");
 
-    // 2. Call the AI model to get the response.
     const { output } = await prompt({
       query,
       context,
@@ -97,29 +92,20 @@ const ragChatFlowDefinition = ai.defineFlow(
     });
     const response = output!.response;
 
-    // 3. In the background, save the new exchange to the vector store for future context.
-    // We don't wait for this to complete to keep the response fast.
-    (async () => {
-      try {
-        await upsertVectorStore(
-          [
-            {
-              role: 'user',
-              content: query,
-            },
-            {
-              role: 'bot',
-              content: response,
-            },
-          ],
-          conversationId
-        );
-      } catch (error) {
-        console.error('BACKGROUND_UPSERT_FAILED: Failed to save chat history.', error);
-      }
-    })();
+    upsertVectorStore(
+      [
+        {
+          role: "user",
+          content: query,
+        },
+        {
+          role: "bot",
+          content: response,
+        },
+      ],
+      conversationId
+    );
 
-    // 4. Return the AI's response to the user.
     return { response };
   }
 );

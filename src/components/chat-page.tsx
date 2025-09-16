@@ -1,21 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import ChatLayout from "@/components/chat-layout";
+import ChatLayout, { type Chat } from "@/components/chat-layout";
 import { ChatHistory } from "@/components/chat-history";
 import { v4 as uuidv4 } from "uuid";
+import { Header } from "./header";
 
 const CHAT_HISTORY_KEY = "chat-history";
 
 export interface Message {
   role: "user" | "bot";
   content: string;
-}
-
-export interface Chat {
-  id: string;
-  title: string;
-  messages: Message[];
 }
 
 export default function ChatPage() {
@@ -29,11 +24,7 @@ export default function ChatPage() {
       title: "New Chat",
       messages: [],
     };
-    setChats((prevChats) => {
-      const updatedChats = [newChat, ...prevChats];
-      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(updatedChats));
-      return updatedChats;
-    });
+    setChats((prevChats) => [newChat, ...prevChats]);
     setActiveChatId(newChat.id);
   }, []);
 
@@ -57,6 +48,11 @@ export default function ChatPage() {
     }
   }, [handleNewChat]);
 
+  useEffect(() => {
+    if (chats.length > 0) {
+      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chats));
+    }
+  }, [chats]);
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
@@ -65,38 +61,40 @@ export default function ChatPage() {
   const handleDeleteChat = (id: string) => {
     setChats((prevChats) => {
       const updatedChats = prevChats.filter((chat) => chat.id !== id);
-      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(updatedChats));
-      
       if (activeChatId === id) {
         if (updatedChats.length > 0) {
           setActiveChatId(updatedChats[0].id);
         } else {
-          // If all chats are deleted, create a new one
+          setActiveChatId(null);
           handleNewChat();
         }
       }
-      
-      // This handles the case where the filter results in an empty array
       if (updatedChats.length === 0) {
         const newChat: Chat = { id: uuidv4(), title: "New Chat", messages: [] };
         setActiveChatId(newChat.id);
-        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify([newChat]));
         return [newChat];
       }
-
       return updatedChats;
     });
   };
 
-  const handleChatTitleChange = (chatId: string, newTitle: string) => {
-    setChats(prevChats => {
-      const updatedChats = prevChats.map(chat => 
-        chat.id === chatId ? { ...chat, title: newTitle } : chat
-      );
-      // No need to save to localStorage here, it's handled by the message update logic
-      return updatedChats;
-    });
+  const handleMessagesChange = (chatId: string, messages: any[]) => {
+    setChats((prevChats) =>
+      prevChats.map((chat) => {
+        if (chat.id === chatId) {
+          const firstUserMessage = messages.find((m) => m.role === "user");
+          const newTitle =
+            chat.title === "New Chat" && firstUserMessage
+              ? firstUserMessage.content.substring(0, 30)
+              : chat.title;
+          return { ...chat, title: newTitle, messages };
+        }
+        return chat;
+      })
+    );
   };
+
+  const activeChat = chats.find((chat) => chat.id === activeChatId);
 
   return (
     <div className="flex h-screen bg-background">
@@ -115,9 +113,8 @@ export default function ChatPage() {
       </div>
       <div className="flex flex-1 flex-col">
         <ChatLayout
-          activeChatId={activeChatId}
-          onNewChat={handleNewChat}
-          onChatTitleChange={handleChatTitleChange}
+          activeChat={activeChat}
+          onMessagesChange={handleMessagesChange}
           onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)}
         />
       </div>

@@ -14,9 +14,10 @@ export async function getChatbotResponse(
 ) {
   if (
     !process.env.PINECONE_API_KEY ||
-    !process.env.PINECONE_HOST
+    !process.env.PINECONE_HOST ||
+    !process.env.PINECONE_INDEX
   ) {
-    return 'The Pinecone credentials are not set in the `.env` file. Please add `PINECONE_API_KEY` and `PINECONE_HOST`.';
+    return 'The Pinecone credentials are not set in the `.env` file. Please add `PINECONE_API_KEY`, `PINECONE_HOST`, and `PINECONE_INDEX`.';
   }
 
   try {

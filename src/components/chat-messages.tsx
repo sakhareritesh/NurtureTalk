@@ -1,13 +1,10 @@
 "use client";
 
-import { HandHeart, LoaderCircle, User, Briefcase, DollarSign, Lightbulb, Download } from 'lucide-react';
+import { HandHeart, LoaderCircle, User, Briefcase, DollarSign, Lightbulb } from 'lucide-react';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from './ui/button';
-import { jsPDF } from "jspdf";
-import { useToast } from "@/hooks/use-toast";
-
 
 export type Message = {
   role: 'user' | 'bot';
@@ -36,12 +33,10 @@ type ChatMessagesProps = {
   messages: Message[];
   isLoading: boolean;
   onPromptSelect: (prompt: string) => void;
-  showWelcomeScreen: boolean;
 };
 
-export function ChatMessages({ messages, isLoading, onPromptSelect, showWelcomeScreen }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, onPromptSelect }: ChatMessagesProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -49,119 +44,12 @@ export function ChatMessages({ messages, isLoading, onPromptSelect, showWelcomeS
     }
   }, [messages, isLoading]);
 
-  const handleGeneratePdf = (summaryContent: string) => {
-    try {
-      const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'pt',
-        format: 'a4'
-      });
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 40;
-      const usableWidth = pageWidth - margin * 2;
-      let y = margin;
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.text('Chat Summary', pageWidth / 2, y, { align: 'center' });
-      y += 25;
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.setTextColor(150);
-      const timestamp = new Date().toLocaleString();
-      pdf.text(`Generated on: ${timestamp}`, pageWidth / 2, y, { align: 'center' });
-      y += 40;
-
-      pdf.setTextColor(0);
-      pdf.setFontSize(12);
-      
-      const textLines = pdf.splitTextToSize(summaryContent, usableWidth);
-      
-      textLines.forEach((line: string) => {
-        if (y + 12 > pdf.internal.pageSize.getHeight() - margin) {
-          pdf.addPage();
-          y = margin;
-        }
-        pdf.text(line, margin, y);
-        y += 18;
-      });
-
-      pdf.save(`NurtureTalk-Summary.pdf`);
-
-      toast({
-        title: "Success",
-        description: "Your PDF summary is downloading.",
-        duration: 3000,
-      });
-
-    } catch (error) {
-      console.error("Error generating PDF report:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate the PDF summary.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const MessageItem = ({ message }: { message: Message }) => {
-    const summaryContent = useMemo(() => {
-      const match = message.content.match(/<SUMMARY>([\s\S]*?)<\/SUMMARY>/);
-      return match ? match[1].trim() : null;
-    }, [message.content]);
-  
-    const regularContent = message.content.replace(/<SUMMARY>[\s\S]*?<\/SUMMARY>/, '').trim();
-  
-    return (
-      <div
-        className={cn('flex items-start gap-4 animate-in fade-in-0 zoom-in-95 duration-300', {
-          'justify-start': message.role === 'bot',
-          'justify-end': message.role === 'user',
-        })}
-      >
-        {message.role === 'bot' && (
-          <Avatar className="h-8 w-8 bg-zinc-800">
-             <AvatarFallback className="bg-transparent text-white">
-                <HandHeart className="h-5 w-5" />
-             </AvatarFallback>
-          </Avatar>
-        )}
-        <div
-          className={cn(
-            'max-w-4xl rounded-lg px-4 py-2 text-base break-words',
-            {
-              'bg-zinc-700 text-white': message.role === 'user',
-              'bg-transparent text-zinc-300': message.role === 'bot',
-            }
-          )}
-        >
-          {regularContent && <p className="whitespace-pre-wrap">{regularContent}</p>}
-          {summaryContent && (
-            <div className="mt-4">
-              <Button onClick={() => handleGeneratePdf(summaryContent)}>
-                <Download className="mr-2 h-4 w-4" />
-                Download Summary
-              </Button>
-            </div>
-          )}
-        </div>
-         {message.role === 'user' && (
-          <Avatar className="h-8 w-8">
-             <AvatarFallback className="bg-zinc-700 text-zinc-300">
-                <User className="h-5 w-5" />
-             </AvatarFallback>
-          </Avatar>
-        )}
-      </div>
-    );
-  };
+  const renderIcon = (IconComponent: React.ElementType) => <IconComponent className="h-5 w-5 mr-2 text-zinc-400" />;
 
   return (
     <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-        {showWelcomeScreen && (
+        {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center pt-8 text-center animate-in fade-in duration-500">
              <h1 className="text-4xl font-bold text-white mb-8">NurtureTalk</h1>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-5xl">
@@ -194,7 +82,39 @@ export function ChatMessages({ messages, isLoading, onPromptSelect, showWelcomeS
           </div>
         )}
         {messages.map((message, index) => (
-          <MessageItem key={`${message.role}-${message.content}-${index}`} message={message} />
+          <div
+            key={index}
+            className={cn('flex items-start gap-4 animate-in fade-in-0 zoom-in-95 duration-300', {
+              'justify-start': message.role === 'bot',
+              'justify-end': message.role === 'user',
+            })}
+          >
+            {message.role === 'bot' && (
+              <Avatar className="h-8 w-8 bg-zinc-800">
+                 <AvatarFallback className="bg-transparent text-white">
+                    <HandHeart className="h-5 w-5" />
+                 </AvatarFallback>
+              </Avatar>
+            )}
+            <div
+              className={cn(
+                'max-w-4xl rounded-lg px-4 py-2 text-base break-words',
+                {
+                  'bg-zinc-700 text-white': message.role === 'user',
+                  'bg-transparent text-zinc-300': message.role === 'bot',
+                }
+              )}
+            >
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            </div>
+             {message.role === 'user' && (
+              <Avatar className="h-8 w-8">
+                 <AvatarFallback className="bg-zinc-700 text-zinc-300">
+                    <User className="h-5 w-5" />
+                 </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
         ))}
         {isLoading && (
            <div className="flex items-start gap-4 animate-in fade-in duration-300">
