@@ -107,28 +107,41 @@ export default function ChatLayout({
     if (!activeChat || messages.length < 2) {
       toast({
         title: "Cannot generate report",
-        description: "There is no bot response to generate a report from.",
+        description: "There is no conversation to generate a report from.",
       });
       return;
     }
 
     try {
-      // Find the last bot message that isn't the PDF request confirmation
-      const lastBotMessage = messages
-        .slice()
-        .reverse()
-        .find(m => m.role === 'bot' && !m.content.includes('<PDF_REQUEST>'));
+      // Filter out the PDF request confirmation messages to find the real conversation
+      const conversationMessages = messages.filter(
+        m => !m.content.includes('<PDF_REQUEST>')
+      );
+
+      let lastUserMessage: Message | undefined;
+      let lastBotMessage: Message | undefined;
+
+      // Find the last user message and the bot message that follows it
+      for (let i = conversationMessages.length - 1; i >= 0; i--) {
+        if (conversationMessages[i].role === 'bot') {
+          lastBotMessage = conversationMessages[i];
+          if (i > 0 && conversationMessages[i - 1].role === 'user') {
+            lastUserMessage = conversationMessages[i - 1];
+            break;
+          }
+        }
+      }
       
-      if (!lastBotMessage) {
+      if (!lastUserMessage || !lastBotMessage) {
         toast({
           title: "Cannot generate report",
-          description: "Could not find a previous bot response to summarize.",
+          description: "Could not find a valid question and answer to summarize.",
         });
         return;
       }
 
       const pdf = new jsPDF();
-      const conversationText = `NurtureTalk: ${lastBotMessage.content.replace(/<PDF_REQUEST>/g, '')}`;
+      const conversationText = `You: ${lastUserMessage.content}\n\nNurtureTalk: ${lastBotMessage.content}`;
 
       pdf.setFont("helvetica");
       pdf.setFontSize(12);
