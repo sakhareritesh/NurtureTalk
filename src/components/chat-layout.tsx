@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -40,7 +41,7 @@ export default function ChatLayout({
       setShowWelcomeScreen(activeChat.messages.length === 0);
     } else {
       setMessages([]);
-      setShowWelcomeScreen(false);
+      setShowWelcomeScreen(true);
     }
   }, [activeChat]);
 
@@ -103,22 +104,31 @@ export default function ChatLayout({
   };
 
   const handleGenerateReport = async () => {
-    if (!activeChat || messages.length === 0) {
+    if (!activeChat || messages.length < 2) {
       toast({
         title: "Cannot generate report",
-        description: "There are no messages in the conversation yet.",
+        description: "There is no bot response to generate a report from.",
       });
       return;
     }
 
     try {
+      // Find the last bot message that isn't the PDF request confirmation
+      const lastBotMessage = messages
+        .slice()
+        .reverse()
+        .find(m => m.role === 'bot' && !m.content.includes('<PDF_REQUEST>'));
+      
+      if (!lastBotMessage) {
+        toast({
+          title: "Cannot generate report",
+          description: "Could not find a previous bot response to summarize.",
+        });
+        return;
+      }
+
       const pdf = new jsPDF();
-      const conversationText = messages
-        .map(
-          (msg) =>
-            `${msg.role === "bot" ? "NurtureTalk" : "You"}: ${msg.content.replace(/<PDF_REQUEST>/g, '')}`
-        )
-        .join("\n\n");
+      const conversationText = `NurtureTalk: ${lastBotMessage.content.replace(/<PDF_REQUEST>/g, '')}`;
 
       pdf.setFont("helvetica");
       pdf.setFontSize(12);
