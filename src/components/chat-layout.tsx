@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Header } from "./header";
 import { ChatInput } from "./chat-input";
 import { ChatMessages, type Message } from "./chat-messages";
 import { getChatbotResponse } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
-import { upsertVectorStore } from "@/services/vector-store";
+import { v4 as uuidv4 } from "uuid";
+
+const CHAT_HISTORY_KEY = "chat-history";
 
 export interface Chat {
   id: string;
@@ -17,26 +19,41 @@ export interface Chat {
 
 type ChatLayoutProps = {
   activeChat: Chat | null;
-  onMessagesChange: (chatId: string, messages: Message[]) => void;
+  onChatUpdate: (chat: Chat) => void;
   onToggleSidebar: () => void;
 };
 
 export default function ChatLayout({
   activeChat,
-  onMessagesChange,
+  onChatUpdate,
   onToggleSidebar,
 }: ChatLayoutProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isMessageLoading, setIsMessageLoading] = useState(false);
-  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (activeChat) {
+      setMessages(activeChat.messages);
+      setShowWelcomeScreen(activeChat.messages.length === 0);
+    } else {
+      setMessages([]);
+      setShowWelcomeScreen(false);
+    }
+  }, [activeChat]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
+    if (showWelcomeScreen) {
+      setShowWelcomeScreen(false);
+    }
   };
 
   const handlePromptSelect = (prompt: string) => {
     setInputValue(prompt);
+    setShowWelcomeScreen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -44,28 +61,33 @@ export default function ChatLayout({
     if (!inputValue.trim() || !activeChat) return;
 
     const userMessage: Message = { role: "user", content: inputValue };
-    const newMessages = [...activeChat.messages, userMessage];
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    const currentInputValue = inputValue;
     setInputValue("");
     setIsMessageLoading(true);
 
     try {
-      
-      await upsertVectorStore([userMessage], activeChat.id);
-
-      
       const response = await getChatbotResponse(
-        inputValue,
+        currentInputValue,
         activeChat.id,
         newMessages
       );
       const botMessage: Message = { role: "bot", content: response };
       const updatedMessages = [...newMessages, botMessage];
+      setMessages(updatedMessages);
 
-      
-      await upsertVectorStore([botMessage], activeChat.id);
+      const firstUserMessage = updatedMessages.find((m) => m.role === "user");
+      const newTitle =
+        activeChat.title === "New Chat" && firstUserMessage
+          ? firstUserMessage.content.substring(0, 30)
+          : activeChat.title;
 
-      
-      onMessagesChange(activeChat.id, updatedMessages);
+      onChatUpdate({
+        ...activeChat,
+        title: newTitle,
+        messages: updatedMessages,
+      });
     } catch (error) {
       console.error("Chat error:", error);
       toast({
@@ -73,6 +95,7 @@ export default function ChatLayout({
         description: "Failed to process your message. Please try again.",
         variant: "destructive",
       });
+      setMessages(newMessages);
       setInputValue(userMessage.content);
     } finally {
       setIsMessageLoading(false);
@@ -80,7 +103,7 @@ export default function ChatLayout({
   };
 
   const handleGenerateReport = async () => {
-    if (!activeChat || activeChat.messages.length === 0) {
+    if (!activeChat || messages.length === 0) {
       toast({
         title: "Cannot generate report",
         description: "There are no messages in the conversation yet.",
@@ -88,13 +111,12 @@ export default function ChatLayout({
       return;
     }
 
-    setIsReportLoading(true);
     try {
       const pdf = new jsPDF();
-      const conversationText = activeChat.messages
+      const conversationText = messages
         .map(
           (msg) =>
-            `${msg.role === "bot" ? "NurtureTalk" : "You"}: ${msg.content}`
+            `${msg.role === "bot" ? "NurtureTalk" : "You"}: ${msg.content.replace(/<PDF_REQUEST>/g, '')}`
         )
         .join("\n\n");
 
@@ -131,7 +153,7 @@ export default function ChatLayout({
         y += 7;
       }
 
-      pdf.save(`NurtureTalk-Report-${activeChat.id}.pdf`);
+      pdf.save(`NurtureTalk-Report.pdf`);
 
       toast({
         title: "Success",
@@ -145,24 +167,18 @@ export default function ChatLayout({
         description: "Failed to generate the PDF report.",
         variant: "destructive",
       });
-    } finally {
-      setIsReportLoading(false);
     }
   };
 
   return (
     <div className="flex h-full flex-col bg-background relative">
-      <Header
-        onGenerateReport={handleGenerateReport}
-        isGeneratingReport={isReportLoading}
-        isMessageLoading={isMessageLoading}
-        hasMessages={!!activeChat && activeChat.messages.length > 0}
-        onToggleSidebar={onToggleSidebar}
-      />
+      <Header onToggleSidebar={onToggleSidebar} />
       <ChatMessages
-        messages={activeChat?.messages ?? []}
+        messages={messages}
         isLoading={isMessageLoading}
         onPromptSelect={handlePromptSelect}
+        onGenerateReport={handleGenerateReport}
+        showWelcomeScreen={showWelcomeScreen}
       />
       <div className="w-full">
         <ChatInput

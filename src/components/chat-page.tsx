@@ -49,7 +49,8 @@ export default function ChatPage() {
   }, [handleNewChat]);
 
   useEffect(() => {
-    if (chats.length > 0) {
+    // Prevent saving empty "New Chat" to localStorage
+    if (chats.length > 0 && (chats.length > 1 || chats[0].messages.length > 0)) {
       localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chats));
     }
   }, [chats]);
@@ -65,10 +66,10 @@ export default function ChatPage() {
         if (updatedChats.length > 0) {
           setActiveChatId(updatedChats[0].id);
         } else {
-          setActiveChatId(null);
-          handleNewChat();
+          setActiveChatId(null); // This will trigger handleNewChat via another useEffect
         }
       }
+      // If all chats are deleted, create a new one.
       if (updatedChats.length === 0) {
         const newChat: Chat = { id: uuidv4(), title: "New Chat", messages: [] };
         setActiveChatId(newChat.id);
@@ -78,21 +79,21 @@ export default function ChatPage() {
     });
   };
 
-  const handleMessagesChange = (chatId: string, messages: any[]) => {
+  const handleChatUpdate = (updatedChat: Chat) => {
     setChats((prevChats) =>
-      prevChats.map((chat) => {
-        if (chat.id === chatId) {
-          const firstUserMessage = messages.find((m) => m.role === "user");
-          const newTitle =
-            chat.title === "New Chat" && firstUserMessage
-              ? firstUserMessage.content.substring(0, 30)
-              : chat.title;
-          return { ...chat, title: newTitle, messages };
-        }
-        return chat;
-      })
+      prevChats.map((chat) =>
+        chat.id === updatedChat.id ? updatedChat : chat
+      )
     );
   };
+  
+  // Effect to create a new chat if all chats are deleted or on initial load with no chats.
+  useEffect(() => {
+    if (chats.length === 0 || activeChatId === null) {
+      handleNewChat();
+    }
+  }, [chats, activeChatId, handleNewChat]);
+
 
   const activeChat = chats.find((chat) => chat.id === activeChatId);
 
@@ -114,7 +115,7 @@ export default function ChatPage() {
       <div className="flex flex-1 flex-col">
         <ChatLayout
           activeChat={activeChat}
-          onMessagesChange={handleMessagesChange}
+          onChatUpdate={handleChatUpdate}
           onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)}
         />
       </div>
